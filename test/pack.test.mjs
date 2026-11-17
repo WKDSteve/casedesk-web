@@ -3,6 +3,7 @@
 // `vim.*` name the bundled modules use.
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
@@ -41,6 +42,27 @@ describe('the pages', () => {
     assert.notDeepEqual(verify(html), [], 'without the allowance its CSP test address is refused');
     assert.match(html, /connect-src 'none'/);
     assert.match(html, /indexedDB\.open\("casedesk-web", 1\)/);
+  });
+
+  test('every source that goes into a page is checked out with LF on every machine', () => {
+    const inputs = [
+      'probe/probe.src.html',
+      'src/engine-check.css',
+      'src/engine-check.js',
+      'src/engine.js',
+      'src/worker.js',
+      'src/vim-shim.lua',
+      'src/casedesk_web.lua',
+      'src/vendor/inspect.lua',
+      'engine.lock',
+    ];
+    const out = execFileSync('git', ['-C', root, 'check-attr', 'eol', 'text', '--', ...inputs], { encoding: 'utf8' });
+    for (const file of inputs) {
+      assert.match(out, new RegExp(`^${file.replace(/[.]/g, '\\.')}: eol: lf$`, 'm'), file);
+    }
+    // and the pages themselves are never converted
+    const pagesOut = execFileSync('git', ['-C', root, 'check-attr', 'text', '--', ...PAGES, 'SHA256SUMS'], { encoding: 'utf8' });
+    for (const file of [...PAGES, 'SHA256SUMS']) assert.match(pagesOut, new RegExp(`^${file.replace(/[.]/g, '\\.')}: text: unset$`, 'm'));
   });
 
   test('a page shell that loads a file is refused', () => {

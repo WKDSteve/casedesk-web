@@ -1,5 +1,14 @@
+# The built pages and their sums are compared byte for byte (Get-FileHash, SHA256SUMS): never converted.
 *.html -text
 SHA256SUMS -text
+# Everything that goes into a page is LF on every checkout, whatever core.autocrlf says: the same sources give the
+# same page and the same sum on every machine (test/pack.test.mjs checks the attribute of each input).
 *.lua text eol=lf
 *.js text eol=lf
 *.mjs text eol=lf
+*.css text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+probe/*.src.html text eol=lf
+engine.lock text eol=lf
