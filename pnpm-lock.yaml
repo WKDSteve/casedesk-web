@@ -1,0 +1,69 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      appkit-web:
+        specifier: github:WKDSteve/appkit#v0.64.0&path:web-kit
+        version: https://codeload.github.com/WKDSteve/appkit/tar.gz/2ab23b0b595eab14a0304a7b4f99d45f152aa7f6#path:web-kit
+      wasmoon:
+        specifier: 1.16.0
+        version: 1.16.0
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.63.0
+        version: 1.65.0
+
+packages:
+
+  '@playwright/test@1.65.0':
+    resolution: {integrity: sha512-iGURLGuKDLakSEl7Pgfv8h7f+XLT+V861Wfhz0zlEl5nyFuKUopdkFBPKqTllTUp06aOwPuH8iuUEb3yp3MpbQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@types/emscripten@1.39.10':
+    resolution: {integrity: sha512-TB/6hBkYQJxsZHSqyeuO1Jt0AB/bW6G7rHt9g7lML7SOF6lbgcHvw/Lr+69iqN0qxgXLhWKScAon73JNnptuDw==}
+
+  appkit-web@https://codeload.github.com/WKDSteve/appkit/tar.gz/2ab23b0b595eab14a0304a7b4f99d45f152aa7f6#path:web-kit:
+    resolution: {path: web-kit, tarball: https://codeload.github.com/WKDSteve/appkit/tar.gz/2ab23b0b595eab14a0304a7b4f99d45f152aa7f6}
+    version: 0.0.0
+    engines: {node: '>=22'}
+
+  playwright-core@1.65.0:
+    resolution: {integrity: sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.65.0:
+    resolution: {integrity: sha512-F3AMWcR44qMBt4kq+6Kb6mX7bjGXshktKFOPULd7reED6ZJWevjbNRqysP7q+AATE9kdPEZBibex1BYsvpVoeA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  wasmoon@1.16.0:
+    resolution: {integrity: sha512-FlRLb15WwAOz1A9OQDbf6oOKKSiefi5VK0ZRF2wgH9xk3o5SnU11tNPaOnQuAh1Ucr66cwwvVXaeVRaFdRBt5g==}
+    hasBin: true
+
+snapshots:
+
+  '@playwright/test@1.65.0':
+    dependencies:
+      playwright: 1.65.0
+
+  '@types/emscripten@1.39.10': {}
+
+  appkit-web@https://codeload.github.com/WKDSteve/appkit/tar.gz/2ab23b0b595eab14a0304a7b4f99d45f152aa7f6#path:web-kit: {}
+
+  playwright-core@1.65.0: {}
+
+  playwright@1.65.0:
+    dependencies:
+      playwright-core: 1.65.0
+
+  wasmoon@1.16.0:
+    dependencies:
+      '@types/emscripten': 1.39.10

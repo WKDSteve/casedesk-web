@@ -1,0 +1,5 @@
+# Supply chain: nothing younger than seven days, no downgrade of the trust level, no install scripts.
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+onlyBuiltDependencies: []

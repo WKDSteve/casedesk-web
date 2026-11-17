@@ -1,0 +1,23 @@
+{
+  "name": "casedesk-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "casedesk in the browser: one HTML file opened from disk (file://), the Lua core of casedesk.nvim running in wasmoon.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build/pack.mjs",
+    "test": "node --test \"test/*.test.mjs\"",
+    "e2e": "playwright test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "appkit-web": "github:WKDSteve/appkit#v0.64.0&path:web-kit",
+    "wasmoon": "1.16.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
