@@ -6,14 +6,14 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, test } from 'node:test';
+import { before, describe, test } from 'node:test';
 import { LuaFactory } from 'wasmoon';
 import { CSP_WASM_WORKER, verify, verifyShell } from 'appkit-web/pack';
 import { bundle, moduleName, root, vimNames } from '../build/bundle.mjs';
-import { classic, PAGES, PART_IDS, pages, sums } from '../build/pack.mjs';
+import { APP_PART_IDS, APP_SCRIPTS, classic, PAGES, PART_IDS, pages, sums } from '../build/pack.mjs';
 import { WebEngine } from '../src/engine.js';
 
-const built = pages();
+const built = await pages();
 
 describe('the pages', () => {
   test('the files in the repository are the build of these sources (run "pnpm build")', () => {
@@ -21,8 +21,8 @@ describe('the pages', () => {
     assert.equal(readFileSync(join(root, 'SHA256SUMS'), 'utf8'), sums(built));
   });
 
-  test('the same sources give the same file', () => {
-    const again = pages();
+  test('the same sources give the same file', async () => {
+    const again = await pages();
     for (const name of PAGES) assert.ok(again[name] === built[name], name);
   });
 
@@ -34,6 +34,19 @@ describe('the pages', () => {
     for (const id of PART_IDS) {
       assert.equal(html.split(`<script id="${id}" type="application/octet-stream">`).length, 2, id);
     }
+  });
+
+  test('casedesk.html: a shell that loads nothing, the policy of an engine page, the three engine parts', () => {
+    const html = built['casedesk.html'];
+    assert.deepEqual(verifyShell(html, { partIds: APP_PART_IDS }), []);
+    assert.ok(html.includes(`content="${CSP_WASM_WORKER}"`));
+    for (const id of APP_PART_IDS) {
+      assert.equal(html.split(`<script id="${id}" type="application/octet-stream">`).length, 2, id);
+    }
+    // no test log in the page: its logs come from the folder picked
+    assert.ok(!html.includes('<script id="fixture"'));
+    // the page keeps its handles in the one database of casedesk-web
+    assert.match(html, /idbKeyValue\(indexedDB, 'casedesk-web'\)/);
   });
 
   test('probe.html: no URL but the one of its CSP test, a policy that forbids requests', () => {
@@ -50,10 +63,12 @@ describe('the pages', () => {
       'src/engine-check.css',
       'src/engine-check.js',
       'src/engine.js',
+      'src/client.js',
+      'src/app/util.js',
+      'src/app/main.js',
+      'src/app/app.css',
       'src/worker.js',
-      'src/vim-shim.lua',
       'src/casedesk_web.lua',
-      'src/vendor/inspect.lua',
       'engine.lock',
     ];
     const out = execFileSync('git', ['-C', root, 'check-attr', 'eol', 'text', '--', ...inputs], { encoding: 'utf8' });
@@ -82,7 +97,28 @@ describe('classic', () => {
 });
 
 describe('the bundle', () => {
-  const b = bundle();
+  let b;
+  before(async () => {
+    b = await bundle();
+  });
+
+  test('the entry and the shim of the core, the view modules and the door', () => {
+    assert.equal(b.entry, 'casedesk.web.api');
+    assert.equal(b.shim, 'casedesk.web.vim_shim');
+    for (const name of [b.entry, b.shim, 'casedesk_web', 'casedesk.logview.view.clock', 'casedesk.logview.view.filter', 'casedesk.logview.view.nodes']) {
+      assert.ok(b.modules[name], name);
+    }
+  });
+
+  test('everything the view modules require is in the bundle', () => {
+    for (const [mod, requires] of Object.entries(b.viewRequires)) {
+      for (const r of requires) assert.ok(b.modules[r], `${mod} requires ${r}`);
+    }
+  });
+
+  test('the scripts of casedesk.html are there and become one classic script', () => {
+    for (const p of APP_SCRIPTS) assert.doesNotThrow(() => classic(readFileSync(join(root, ...p), 'utf8')), p.join('/'));
+  });
 
   test('module names', () => {
     assert.equal(moduleName('lua/lib/lua/xml/init.lua'), 'lib.lua.xml');
@@ -99,12 +135,14 @@ describe('the bundle', () => {
 
   test('every vim.* name the modules use is in the shim', async () => {
     const used = new Set();
-    for (const source of Object.values(b.modules)) for (const n of vimNames(source)) used.add(n);
-    const engine = await WebEngine.create({
-      factory: new LuaFactory(),
-      bundle: b,
-      shim: readFileSync(join(root, 'src', 'vim-shim.lua'), 'utf8'),
-    });
+    // the core's own shim defines its names, it does not use them; the filter's prompt (vim.ui.input) is never called
+    // here, the page asks for a filter itself
+    const allowed = new Set(['casedesk.logview.view.filter vim.ui.input']);
+    for (const [mod, source] of Object.entries(b.modules)) {
+      if (mod === b.shim) continue;
+      for (const n of vimNames(source)) if (!allowed.has(`${mod} ${n}`)) used.add(n);
+    }
+    const engine = await WebEngine.create({ factory: new LuaFactory(), bundle: b });
     try {
       const missing = [];
       for (const name of used) {

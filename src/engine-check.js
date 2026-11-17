@@ -61,68 +61,7 @@ const ms = (t) => Math.round(performance.now() - t) + ' ms';
 const withTimeout = (p, msec, what) =>
   Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ' timed out after ' + msec + ' ms')), msec))]);
 
-/** base64 -> bytes: `Uint8Array.fromBase64` where the browser has it, else `atob`. Both skip the line breaks. */
-function base64Bytes(text) {
-  if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(text.replace(/\s+/g, ''));
-  const binary = atob(text.replace(/\s+/g, ''));
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-async function gunzip(bytes) {
-  const source = new ReadableStream({
-    start(controller) {
-      controller.enqueue(bytes);
-      controller.close();
-    },
-  });
-  return new Uint8Array(await new Response(source.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-}
-
-async function unpackPart(id) {
-  const node = document.getElementById(id);
-  if (!node) throw new Error(`the page lacks its part "${id}"`);
-  const bytes = base64Bytes(node.textContent);
-  return { gz: bytes.length, data: await gunzip(bytes) };
-}
-
-/** A classic worker from a blob: a module worker from a blob does not start on a page opened from disk. */
-function startWorker(source) {
-  const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
-  const worker = new Worker(url, { type: 'classic' });
-  const pending = new Map();
-  let next = 1;
-  let ready;
-  const readyP = new Promise((resolve, reject) => {
-    ready = { resolve, reject };
-  });
-  worker.onmessage = (e) => {
-    const m = e.data;
-    if (m.type === 'ready') ready.resolve(m.ms);
-    else if (m.type === 'result') {
-      pending.get(m.id)?.resolve(m);
-      pending.delete(m.id);
-    } else if (m.type === 'error') {
-      if (m.id && pending.has(m.id)) {
-        pending.get(m.id).reject(new Error(m.message));
-        pending.delete(m.id);
-      } else ready.reject(new Error(m.message));
-    } else if (m.type === 'log') console.log('engine:', m.level, m.message);
-  };
-  worker.onerror = (e) => ready.reject(new Error(e.message || 'worker failed to start (event ' + e.type + ')'));
-  return {
-    worker,
-    ready: readyP,
-    call(method, params) {
-      const id = next++;
-      return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        worker.postMessage({ type: 'call', id, method, request: params === undefined ? null : JSON.stringify({ params }) });
-      });
-    },
-  };
-}
+// base64Bytes, gunzip, unpackPart and startEngineWorker come from src/client.js, put in front of this script.
 
 function showEntries(doc) {
   entries.replaceChildren(
@@ -140,13 +79,13 @@ function showEntries(doc) {
   );
 }
 
-const LOG = '/case/assets/device.log';
+const LOG = 'device.log';
 
 async function main() {
   set('env', 'Origin', location.protocol === 'file:' ? 'ok' : 'info', location.protocol + ' secureContext=' + window.isSecureContext);
   set('ua', 'Browser', 'info', navigator.userAgent);
   set('sizes', 'Embedded parts (bytes, unpacked)', 'info', JSON.stringify(PAGE.sizes));
-  const names = ['worker', 'wasm', 'bundle', 'shim', 'fixture'];
+  const names = ['worker', 'wasm', 'bundle', 'fixture'];
   let parts;
   try {
     const t = performance.now();
@@ -161,14 +100,12 @@ async function main() {
   let w;
   try {
     const t = performance.now();
-    w = startWorker(dec.decode(parts.worker));
+    w = startEngineWorker(dec.decode(parts.worker));
     const wasm = parts.wasm.buffer;
     const init = {
       type: 'init',
       wasm,
       bundle: JSON.parse(dec.decode(parts.bundle)),
-      shim: dec.decode(parts.shim),
-      files: { [LOG]: dec.decode(parts.fixture) },
     };
     w.worker.postMessage(init, [wasm]);
     const inWorker = await withTimeout(w.ready, 30000, 'engine start');
@@ -185,7 +122,7 @@ async function main() {
     set('hello', 'call hello', 'fail', err(e));
   }
   try {
-    const r = await withTimeout(w.call('reading_copy', { path: LOG }), 30000, 'reading_copy');
+    const r = await withTimeout(w.call('reading_copy', { name: LOG, blob: 1 }, [dec.decode(parts.fixture)]), 30000, 'reading_copy');
     const doc = JSON.parse(r.text);
     if (r.code) {
       set('copy-doc', 'Reading copy of the test log', 'fail', r.code + ': ' + doc.message);

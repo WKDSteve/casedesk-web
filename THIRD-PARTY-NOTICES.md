@@ -1,18 +1,17 @@
 # Third-party notices
 
-The engine check page (`engine-check.html`) bundles the code below; its head names the same in a comment. Versions as
-in `pnpm-lock.yaml`.
+The pages that run the Lua core (`casedesk.html`, `engine-check.html`) bundle the code below; their heads name the same
+in a comment. Versions as in `pnpm-lock.yaml`.
 
 | Component | Version | License | In |
 | --- | --- | --- | --- |
-| Lua (compiled to WebAssembly by wasmoon) | 5.4 | MIT | engine-check.html |
-| wasmoon | 1.16.0 | MIT | engine-check.html |
-| Emscripten runtime (JavaScript glue inside wasmoon) | as built by wasmoon | MIT | engine-check.html |
-| inspect.lua (as vim.inspect of Neovim 0.12.2) | 3.1.0 | MIT | engine-check.html |
+| Lua (compiled to WebAssembly by wasmoon) | 5.4 | MIT | casedesk.html, engine-check.html |
+| wasmoon | 1.16.0 | MIT | casedesk.html, engine-check.html |
+| Emscripten runtime (JavaScript glue inside wasmoon) | as built by wasmoon | MIT | casedesk.html, engine-check.html |
 
-First-party code in the pages, all MIT, Copyright (c) 2026 Stefan Bartl: casedesk-web (pages, worker, door), the `vim`
-shim of tasks-desktop, and the Lua of casedesk.nvim and lib.nvim. The case-mapping table of the `vim` shim is
-generated from Neovim `vim.fn.tolower` (data, not code). `probe.html` contains no third-party code.
+First-party code in the pages, all MIT, Copyright (c) 2026 Stefan Bartl: casedesk-web (pages, worker, door),
+appkit-web (folder choice, the folders used before), and the Lua of casedesk.nvim and lib.nvim (with its `vim` shim).
+`probe.html` contains no third-party code.
 
 ## Copyright notices
 
@@ -20,7 +19,6 @@ generated from Neovim `vim.fn.tolower` (data, not code). `probe.html` contains n
 - wasmoon: Copyright (c) 2023 Gabriel Francisco.
 - Emscripten runtime (JavaScript glue inside wasmoon): Copyright (c) 2010-2014 Emscripten authors, see the AUTHORS file
   of Emscripten.
-- inspect.lua (as vim.inspect of Neovim 0.12.2): Copyright (c) 2013 Enrique Garcia Cota.
 
 ## MIT License (all components above)
 

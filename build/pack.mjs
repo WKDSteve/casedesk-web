@@ -1,10 +1,15 @@
 // Builds the pages of casedesk-web into the root of this repository, with their SHA256SUMS.
 //
-//   node build/pack.mjs            build probe.html and engine-check.html, write SHA256SUMS
+//   node build/pack.mjs            build casedesk.html, probe.html and engine-check.html, write SHA256SUMS
 //   node build/pack.mjs --check    build in memory and compare with the files in the repository (exit 1 if they differ)
 //
-// engine-check.html: one file, made by appkit-web's `assemble`: the script and the style inline, five parts
-// gzip-compressed as base64 (the worker's script, the WASM of the Lua VM, the Lua sources, the vim shim, the test log),
+// casedesk.html: the reading copy of case logs (src/app/). One file like the engine check, with four parts (the
+// worker's script, the WASM, the Lua sources) and the same policy; its script is appkit-web's folder.js and
+// folder-input.js, src/client.js, src/app/util.js and src/app/main.js as one classic script.
+//
+// engine-check.html: one file, made by appkit-web's `assemble`: the script and the style inline, four parts
+// gzip-compressed as base64 (the worker's script, the WASM of the Lua VM, the Lua sources with the core's vim shim, the
+// test log),
 // and the policy CSP_WASM_WORKER as a meta tag (no request of any kind, WASM from embedded bytes, a worker from a blob).
 // `verifyShell` refuses a shell that loads anything; what the script does at run time is checked by the browser test
 // (e2e/), which opens the file and counts the requests.
@@ -22,8 +27,18 @@ import { fileURLToPath } from 'node:url';
 import { assemble, CSP_WASM_WORKER, verify, verifyShell, writePage } from 'appkit-web/pack';
 import { bundle, bundleJson, root } from './bundle.mjs';
 
-export const PART_IDS = ['worker', 'wasm', 'bundle', 'shim', 'fixture'];
-export const PAGES = ['probe.html', 'engine-check.html'];
+export const PART_IDS = ['worker', 'wasm', 'bundle', 'fixture'];
+export const APP_PART_IDS = ['worker', 'wasm', 'bundle'];
+export const PAGES = ['casedesk.html', 'probe.html', 'engine-check.html'];
+
+/** The scripts of casedesk.html, in order: appkit-web's folder modules, then this repository's. */
+export const APP_SCRIPTS = [
+  ['node_modules', 'appkit-web', 'src', 'folder.js'],
+  ['node_modules', 'appkit-web', 'src', 'folder-input.js'],
+  ['src', 'client.js'],
+  ['src', 'app', 'util.js'],
+  ['src', 'app', 'main.js'],
+];
 
 const PROBE_ALLOW = ['https://example.invalid/'];
 const FILLER_BYTES = 384 * 1024; // about 512 KiB of base64, the size of the VM
@@ -56,19 +71,48 @@ export function workerSource() {
 
 const sha = (data) => createHash('sha256').update(data).digest('hex');
 
-/** The engine check page. */
-export function engineCheck(b = bundle()) {
-  const parts = {
+/** The parts every engine page carries. */
+function engineParts(b) {
+  return {
     worker: Buffer.from(workerSource(), 'utf8'),
     wasm: readFileSync(join(wasmoonDir, 'glue.wasm')),
     bundle: Buffer.from(bundleJson(b), 'utf8'),
-    shim: Buffer.from(src('src', 'vim-shim.lua'), 'utf8'),
-    fixture: Buffer.from(b.fixture, 'utf8'),
   };
+}
+
+const engineLabel = (b) => `casedesk.nvim ${b.engine.casedesk_commit.slice(0, 7)}, lib.nvim ${b.engine.lib_commit.slice(0, 7)}`;
+
+/** The reading copy page. */
+export function app(b) {
+  const parts = engineParts(b);
+  const css = src('src', 'app', 'app.css');
+  const script = APP_SCRIPTS.map((p) => classic(readFileSync(join(root, ...p), 'utf8'))).join('\n;\n');
+  const build = sha([css, script, ...APP_PART_IDS.map((id) => sha(parts[id]))].join('\n')).slice(0, 12);
+  const engine = engineLabel(b);
+  const js = `const PAGE = ${JSON.stringify({ build, engine })};\n${script}`;
+  const html = assemble({
+    css,
+    js,
+    partIds: APP_PART_IDS,
+    parts,
+    csp: CSP_WASM_WORKER,
+    title: 'casedesk',
+    comment:
+      `casedesk-web, the reading copy of case logs, build ${build}, ${engine}. Third-party code inside: Lua 5.4 and ` +
+      'wasmoon 1.16.0 (MIT); see THIRD-PARTY-NOTICES.md',
+  });
+  const problems = verifyShell(html, { partIds: APP_PART_IDS });
+  if (problems.length) throw new Error('casedesk: ' + problems.join('; '));
+  return html;
+}
+
+/** The engine check page. */
+export function engineCheck(b) {
+  const parts = { ...engineParts(b), fixture: Buffer.from(b.fixture, 'utf8') };
   const css = src('src', 'engine-check.css');
-  const script = src('src', 'engine-check.js');
+  const script = classic(src('src', 'client.js')) + '\n;\n' + src('src', 'engine-check.js');
   const build = sha([css, script, ...PART_IDS.map((id) => sha(parts[id]))].join('\n')).slice(0, 12);
-  const engine = `casedesk.nvim ${b.engine.casedesk_commit.slice(0, 7)}, lib.nvim ${b.engine.lib_commit.slice(0, 7)}`;
+  const engine = engineLabel(b);
   const sizes = Object.fromEntries(PART_IDS.map((id) => [id, parts[id].length]));
   const js = `const PAGE = ${JSON.stringify({ build, engine, sizes })};\n${script}`;
   const html = assemble({
@@ -80,7 +124,7 @@ export function engineCheck(b = bundle()) {
     title: 'casedesk-web engine check',
     comment:
       `casedesk-web engine check, build ${build}, ${engine}. Third-party code inside: Lua 5.4 and wasmoon 1.16.0 ` +
-      '(MIT), inspect.lua 3.1.0 (MIT); see THIRD-PARTY-NOTICES.md',
+      '(MIT); see THIRD-PARTY-NOTICES.md',
   });
   const problems = verifyShell(html, { partIds: PART_IDS });
   if (problems.length) throw new Error('engine-check: ' + problems.join('; '));
@@ -117,8 +161,9 @@ export function probe() {
 }
 
 /** Every page: name -> html. */
-export function pages() {
-  return { 'probe.html': probe(), 'engine-check.html': engineCheck() };
+export async function pages() {
+  const b = await bundle();
+  return { 'casedesk.html': app(b), 'probe.html': probe(), 'engine-check.html': engineCheck(b) };
 }
 
 /** The text of SHA256SUMS for these pages, in the order of PAGES. */
@@ -126,8 +171,8 @@ export function sums(built) {
   return PAGES.map((name) => `${sha(built[name])}  ${name}\n`).join('');
 }
 
-function main() {
-  const built = pages();
+async function main() {
+  const built = await pages();
   if (process.argv.includes('--check')) {
     const stale = PAGES.filter((name) => {
       try {
@@ -157,4 +202,4 @@ function main() {
   writeFileSync(join(root, 'SHA256SUMS'), sums(built));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

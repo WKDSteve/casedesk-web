@@ -2,8 +2,8 @@
 //
 // A classic worker started from a blob, never `type: module`: a module worker from a blob does not start on a page
 // opened from disk (`file://`, tasks-web probe 2026-10-28), a classic one does. The page hands in everything at `init`:
-// the WASM of the VM, the Lua sources, the vim shim and the files to mount, so the worker never loads a file and never
-// asks the network.
+// the WASM of the VM and the Lua sources; the texts the core reads come with each call. The worker never loads a file
+// and never asks the network.
 //
 // The VM's loader asks `fetch` for its WASM. For the one address WASM_URL this worker answers from the bytes it got;
 // every other request goes to the real `fetch`, which the page's CSP (`connect-src 'none'`) refuses.
@@ -28,7 +28,7 @@ export function serveEmbeddedWasm(scope, bytes) {
 }
 
 /**
- * Messages in: `{ type: 'init', wasm, bundle, shim, files? }`, `{ type: 'call', id, method, request }`.
+ * Messages in: `{ type: 'init', wasm, bundle }`, `{ type: 'call', id, method, request, blobs? }`.
  * Messages out: `ready`, `result` (`id`, `text`, `code`, `ms`), `log`, `error` (with the `id` of a call, or none).
  * @param {{ fetch: typeof fetch, postMessage(m: object): void, onmessage: any }} scope
  * @param {{ factory?: () => any }} [options]  a test in Node passes the stock factory
@@ -50,11 +50,6 @@ export function startWorker(scope, options = {}) {
       engine = WebEngine.create({
         factory: options.factory ? options.factory() : new LuaFactory(WASM_URL),
         bundle: msg.bundle,
-        shim: msg.shim,
-        log: (level, message) => post({ type: 'log', level, message }),
-      }).then((e) => {
-        if (msg.files) e.mount(msg.files);
-        return e;
       });
       try {
         await engine;
@@ -72,7 +67,7 @@ export function startWorker(scope, options = {}) {
       try {
         const e = await engine;
         const t0 = performance.now();
-        const r = e.call(msg.method, msg.request);
+        const r = e.call(msg.method, msg.request, msg.blobs ?? []);
         post({ type: 'result', id: msg.id, text: r.text, code: r.code, ms: Math.round(performance.now() - t0) });
       } catch (err) {
         post({ type: 'error', id: msg.id, message: String(err) });
