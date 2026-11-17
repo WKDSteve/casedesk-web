@@ -50,6 +50,7 @@ const st = {
   folder: null, // { handle, name, caseName, logs: [{ path, handle }], dir }
   open: null, // { paths, summary, files: [{ path, handle }] }
   filters: [],
+  timeOverride: null, // 'utc' while a merged view shows UTC without the setting saying so
   catalog: null, // { handle, name, text?, permission }
   rows: [], // top-level nodes of the view
   flat: [], // visible nodes in order
@@ -60,6 +61,11 @@ const st = {
   message: '',
   busy: 0,
 };
+
+/** The time mode the view shows: the setting, or UTC for a merged view while the setting is the time as written. */
+function viewTime() {
+  return st.timeOverride ?? st.settings.time;
+}
 
 function loadSettings() {
   try {
@@ -286,7 +292,7 @@ function viewMenu() {
   const s = st.settings;
   return [
     note('Zeit'),
-    ...TIME_MODES.map(([m, label]) => item(label, () => setTime(m), { check: s.time === m, key: m === s.time ? 'tz' : '' })),
+    ...TIME_MODES.map(([m, label]) => item(label, () => setTime(m), { check: viewTime() === m, key: m === viewTime() ? 'tz' : '' })),
     sep(),
     item('Wiederholungen falten', () => toggleRepeats(), { check: s.repeats, key: 'gr' }),
     sep(),
@@ -562,7 +568,8 @@ async function openLogs(chosen) {
     }
     const t0 = performance.now();
     const summary = await door('open', params, blobs);
-    if (summary.merged && st.settings.time === 'original') st.settings.time = 'utc';
+    // a merged view starts in UTC (as :Case log merge), without changing the setting
+    st.timeOverride = summary.merged && st.settings.time === 'original' ? 'utc' : null;
     st.open = { paths: chosen.map((l) => l.path), files: chosen, summary };
     st.filters = [];
     await refreshView({ keep: false });
@@ -663,7 +670,7 @@ async function refreshView({ keep = true } = {}) {
   const snap = keep ? snapshot() : { open: [], cursor: null };
   const s = st.settings;
   const v = await door('view', {
-    time: s.time,
+    time: viewTime(),
     repeats: s.repeats,
     filters: st.filters,
     delta_ms: s.delta_ms,
@@ -1006,6 +1013,7 @@ function renderStatus() {
 // ── actions ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
 async function setTime(m) {
+  st.timeOverride = null;
   st.settings.time = m;
   saveSettings();
   await busy(() => refreshView());
@@ -1290,7 +1298,7 @@ function run(action) {
     case 'filter_clear':
       return clearFilters();
     case 'tz': {
-      const i = TIME_MODES.findIndex(([m]) => m === st.settings.time);
+      const i = TIME_MODES.findIndex(([m]) => m === viewTime());
       const next = TIME_MODES[(i + 1) % TIME_MODES.length][0];
       return setTime(next).then(() => say(`Zeit: ${TIME_MODES.find(([m]) => m === next)[1]}`));
     }

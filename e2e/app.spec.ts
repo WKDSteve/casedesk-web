@@ -237,6 +237,14 @@ test('repeats, exceptions, stack trees and merged logs', async ({ page }) => {
   await keys(page, 'g', 'g', ']', 'g');
   await expect(cursor(page)).toHaveClass(/\bgap\b/);
   await expect(cursor(page)).toContainText('without an entry');
+  // UTC was the merged view's start, not a choice: the next single log shows the time as written again, and the
+  // settings never kept UTC
+  await keys(page, 'z', 'M');
+  await page.locator('#menubutton-file').click();
+  await page.getByRole('menuitem', { name: 'Log wählen …' }).click();
+  await openLog(page, 'browserstack-device.log');
+  await expect(page.locator('#status')).toContainText('Zeit: Original');
+  expect(await page.evaluate(() => localStorage.getItem('casedesk-web.view') ?? '')).not.toContain('"utc"');
 
   await clean(page, watch);
 });
