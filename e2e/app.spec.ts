@@ -97,6 +97,15 @@ test('a case folder, its logs, the reading copy, the side bar and the keys of Ne
   await group(page, 'warnings').getByRole('button').click();
   await expect(cursor(page)).toHaveAttribute('data-id', 'e11');
 
+  // unfolding a row above the cursor (a click on its mark) keeps the cursor on its row, and only there
+  await page.locator('#rows .row[data-id="e3"] .mark').click();
+  await expect(page.locator('#rows .row[data-id="e3/capabilities"]')).toBeVisible();
+  await expect(cursor(page)).toHaveCount(1);
+  await expect(cursor(page)).toHaveAttribute('data-id', 'e11');
+  await page.locator('#rows .row[data-id="e3"] .mark').click();
+  await expect(cursor(page)).toHaveCount(1);
+  await expect(cursor(page)).toHaveAttribute('data-id', 'e11');
+
   // jumps as in Neovim
   await keys(page, 'g', 'g');
   await expect(cursor(page)).toHaveAttribute('data-id', 'e1');
@@ -160,6 +169,19 @@ test('a case folder, its logs, the reading copy, the side bar and the keys of Ne
   await page.getByRole('menuitem', { name: /Nur Fehler/ }).click();
   await expect(entries(page)).toHaveCount(1);
   await expect(entries(page).first()).toHaveAttribute('data-id', 'e6');
+  await keys(page, 'g', '0');
+  await expect(entries(page)).toHaveCount(11);
+  // a filter the core refuses is not kept: the next one works
+  await keys(page, 'g', 'f');
+  await page.locator('#filter-field').evaluate((s) => s.append(new Option('nope', 'nope')));
+  await page.locator('#filter-field').selectOption('nope');
+  await page.locator('#filter-raw').fill('x');
+  await page.locator('#filter-raw').press('Enter');
+  await expect(page.locator('#message')).toContainText('bad_request: filter 1: no field nope');
+  await keys(page, 'g', 'f');
+  await page.locator('#filter-raw').fill('session');
+  await page.locator('#filter-raw').press('Enter');
+  await expect(page.locator('#status')).toContainText('Filter: text~session');
   await keys(page, 'g', '0');
   await expect(entries(page)).toHaveCount(11);
 

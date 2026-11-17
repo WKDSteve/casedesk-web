@@ -113,7 +113,7 @@ async function busy(fn) {
     return await fn();
   } catch (e) {
     say('Fehler: ' + errText(e));
-    console.error(e);
+    console.warn(e);
     return undefined;
   } finally {
     st.busy--;
@@ -873,8 +873,11 @@ function redraw(n) {
   for (const m of fresh) m.el = rowEl(m, width);
   old.replaceWith(...fresh.map((m) => m.el));
   st.flat.splice(at, end - at, ...fresh);
+  // the cursor stays on its row: below the subtree it moves by what the subtree grew, inside a folded one it goes to n
   const cur = st.cursor;
-  st.cursor = Math.min(cur, st.flat.length - 1);
+  if (cur >= end) st.cursor = cur + fresh.length - (end - at);
+  else if (cur > at && cur >= at + fresh.length) st.cursor = at;
+  for (const el of document.querySelectorAll('#rows .row.cursor')) el.classList.remove('cursor');
   st.flat[st.cursor]?.el?.classList.add('cursor');
 }
 
@@ -887,7 +890,11 @@ async function toggle(n, want) {
   if (!n?.expandable) return;
   const open = want ?? !n.open;
   if (open === n.open) return;
-  if (open) await busy(() => loadChildren([n]));
+  if (open) {
+    await busy(() => loadChildren([n]));
+    // a failed load leaves the row folded (the status line says why)
+    if (!n.children) return;
+  }
   n.open = open;
   redraw(n);
 }
@@ -1038,8 +1045,14 @@ function forget(n) {
 }
 
 async function addFilter(clause) {
-  st.filters = [...st.filters, clause];
-  await busy(() => refreshView());
+  const before = st.filters;
+  st.filters = [...before, clause];
+  const shown = await busy(async () => {
+    await refreshView();
+    return true;
+  });
+  // a filter the core refuses would make every later view fail: it goes again (the status line says why)
+  if (!shown) st.filters = before;
 }
 
 async function popFilter() {
