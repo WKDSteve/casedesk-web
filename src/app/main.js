@@ -980,12 +980,21 @@ function knownBlock(g) {
     if (k.kind === 'url') return h('a', { href: k.href, target: '_blank', rel: 'noopener noreferrer' }, k.text);
     return h('span', { class: k.kind }, k.kind === 'case' ? `Fall ${k.text}` : k.text);
   });
+  const refs = knownRefs(g).map((r) =>
+    h(
+      'div',
+      { class: 'ref' },
+      `${r.label}: `,
+      r.kind === 'url' ? h('a', { href: r.href, target: '_blank', rel: 'noopener noreferrer' }, r.text) : h('span', { class: r.kind }, r.text),
+    ),
+  );
   const block = h(
     'div',
     { class: `known-item sev-${g.severity}`, dataset: { known: g.id } },
     h('div', { class: 'known-title' }, `✱ ${g.title}`, h('span', { class: 'dim' }, ` · ${g.severity}`)),
     g.explain ? h('div', { class: 'explain' }, g.explain) : null,
     links.length ? h('div', { class: 'links' }, ...links.flatMap((a, i) => (i ? [' · ', a] : [a]))) : null,
+    ...refs,
   );
   const ul = h('ul', {});
   for (const r of list(g.rows)) ul.append(h('li', {}, jumpButton(r.id, `${r.time}  ${r.text}`)));

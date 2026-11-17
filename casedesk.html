@@ -7,7 +7,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <title>casedesk</title>
-<!-- casedesk-web, the reading copy of case logs, build 1329fafd567d, casedesk.nvim 6fc05db, lib.nvim 4f385bb. Third-party code inside: Lua 5.4 and wasmoon 1.16.0 (MIT); see THIRD-PARTY-NOTICES.md -->
+<!-- casedesk-web, the reading copy of case logs, build 0f11d7fe4db2, casedesk.nvim 6fc05db, lib.nvim 4f385bb. Third-party code inside: Lua 5.4 and wasmoon 1.16.0 (MIT); see THIRD-PARTY-NOTICES.md -->
 <style>/* casedesk.html: menu bar on top, the reading copy, the side bar on the right, the status line at the bottom. */
 
 :root {
@@ -2839,7 +2839,7 @@ yCH92Kewm03I0TAVPEewZ6KbQ6rNFT+duzrkDmwL2/GOKG8AvIXH37u70tvYYBN7Ahseft0QPZ4YDIF/
 Ccl5iAJqMRfFl+3YHXK0LQycpFusSm4xTGL3nj9BIY8carCSrOn2aYdZZNc0mF/1SdX8gr2i0gkb3MPfuFNTqjOiN4jAFnKYwImR2aKoEjtvnv0RWHOSagTG
 9ScpL9mJ1RlEXUwjfdIFg9/e3v5fMFy/EysAAwA=
 </script>
-<script type="module">const PAGE = {"build":"1329fafd567d","engine":"casedesk.nvim 6fc05db, lib.nvim 4f385bb"};
+<script type="module">const PAGE = {"build":"0f11d7fe4db2","engine":"casedesk.nvim 6fc05db, lib.nvim 4f385bb"};
 // The folder the person works in, in an app's web variant: choosing it (File System Access API), the folders used
 // before (their handles in IndexedDB), and the permission to read them, which the browser asks again after a restart.
 //
@@ -3505,6 +3505,17 @@ function linkKind(link) {
   const c = s.match(/^case:(.+)$/i);
   if (c) return { kind: 'case', text: c[1] };
   return { kind: 'ref', text: s };
+}
+
+/**
+ * The task and the ticket a catalog item names (`task`, `ticket` of log-patterns.md), as the side bar shows them:
+ * the task as its id (the browser has no task vault, so no status), the ticket as a link (`linkKind`).
+ */
+function knownRefs(item) {
+  const out = [];
+  if (typeof item?.task === 'string' && item.task) out.push({ label: 'Task', kind: 'ref', text: item.task });
+  if (typeof item?.ticket === 'string' && item.ticket) out.push({ label: 'Ticket', ...linkKind(item.ticket) });
+  return out;
 }
 
 ;
@@ -4490,12 +4501,21 @@ function knownBlock(g) {
     if (k.kind === 'url') return h('a', { href: k.href, target: '_blank', rel: 'noopener noreferrer' }, k.text);
     return h('span', { class: k.kind }, k.kind === 'case' ? `Fall ${k.text}` : k.text);
   });
+  const refs = knownRefs(g).map((r) =>
+    h(
+      'div',
+      { class: 'ref' },
+      `${r.label}: `,
+      r.kind === 'url' ? h('a', { href: r.href, target: '_blank', rel: 'noopener noreferrer' }, r.text) : h('span', { class: r.kind }, r.text),
+    ),
+  );
   const block = h(
     'div',
     { class: `known-item sev-${g.severity}`, dataset: { known: g.id } },
     h('div', { class: 'known-title' }, `✱ ${g.title}`, h('span', { class: 'dim' }, ` · ${g.severity}`)),
     g.explain ? h('div', { class: 'explain' }, g.explain) : null,
     links.length ? h('div', { class: 'links' }, ...links.flatMap((a, i) => (i ? [' · ', a] : [a]))) : null,
+    ...refs,
   );
   const ul = h('ul', {});
   for (const r of list(g.rows)) ul.append(h('li', {}, jumpButton(r.id, `${r.time}  ${r.text}`)));

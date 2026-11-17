@@ -236,3 +236,14 @@ export function linkKind(link) {
   if (c) return { kind: 'case', text: c[1] };
   return { kind: 'ref', text: s };
 }
+
+/**
+ * The task and the ticket a catalog item names (`task`, `ticket` of log-patterns.md), as the side bar shows them:
+ * the task as its id (the browser has no task vault, so no status), the ticket as a link (`linkKind`).
+ */
+export function knownRefs(item) {
+  const out = [];
+  if (typeof item?.task === 'string' && item.task) out.push({ label: 'Task', kind: 'ref', text: item.task });
+  if (typeof item?.ticket === 'string' && item.ticket) out.push({ label: 'Ticket', ...linkKind(item.ticket) });
+  return out;
+}

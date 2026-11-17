@@ -41,7 +41,8 @@ the case folder you pick and nothing else, and writes nothing.
 
 The side bar on the right groups the rows of the view (after filters): **Fehler**, **Warnungen**, **Exceptions**,
 **Lücken**, **Wiederholungen** and, with a catalog, **Bekannt**, each known message with its explanation, its links
-(a URL opens in a new tab, `case:` names a case) and the rows it matches. A click jumps to the row. Drag the edge to
+(a URL opens in a new tab, `case:` names a case), its task and ticket when the catalog names them (the task by
+its id: the browser has no task vault) and the rows it matches. A click jumps to the row. Drag the edge to
 widen it; the page keeps the width.
 
 Keys as in Neovim (`g?` lists them):

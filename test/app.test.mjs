@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { checkout, readLock, root, tiersSource } from '../build/bundle.mjs';
-import { decodeLog, isLogFile, KeyReader, keyName, linkKind, listLogs, LOG_EXTENSIONS, pieces } from '../src/app/util.js';
+import { decodeLog, isLogFile, KeyReader, keyName, knownRefs, linkKind, listLogs, LOG_EXTENSIONS, pieces } from '../src/app/util.js';
 
 const squash = (s) => s.replace(/--[^\n]*/g, '').replace(/\s+/g, '');
 
@@ -136,4 +136,15 @@ test('catalog links: URL, case, reference', () => {
   assert.deepEqual(linkKind('case:4711'), { kind: 'case', text: '4711' });
   assert.deepEqual(linkKind('KB0012345'), { kind: 'ref', text: 'KB0012345' });
   assert.deepEqual(linkKind('javascript:alert(1)'), { kind: 'ref', text: 'javascript:alert(1)' });
+});
+
+test('catalog task and ticket: the task by its id, the ticket as a link or text', () => {
+  assert.deepEqual(knownRefs({ task: 'casedesk.nvim/fix-x', ticket: 'TOSCA-00001' }), [
+    { label: 'Task', kind: 'ref', text: 'casedesk.nvim/fix-x' },
+    { label: 'Ticket', kind: 'ref', text: 'TOSCA-00001' },
+  ]);
+  assert.deepEqual(knownRefs({ ticket: 'https://example.invalid/browse/T-1' }), [
+    { label: 'Ticket', kind: 'url', text: 'https://example.invalid/browse/T-1', href: 'https://example.invalid/browse/T-1' },
+  ]);
+  assert.deepEqual(knownRefs({ title: 'no refs' }), []);
 });
