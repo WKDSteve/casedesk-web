@@ -1,43 +1,23 @@
-// The parts of casedesk.html that do not need a browser (src/app/util.js), and the two copies this repository holds of
-// casedesk.nvim's lua/casedesk/logs.lua (not part of the pure core): the words of the levels and the log extensions.
+// The parts of casedesk.html that do not need a browser (src/app/util.js). Which extensions are logs and how a
+// file's bytes become text the Lua core answers; test/engine.test.mjs checks those through the door.
 
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, test } from 'node:test';
-import { checkout, readLock, root, tiersSource } from '../build/bundle.mjs';
-import { decodeLog, isLogFile, KeyReader, keyName, knownRefs, linkKind, listLogs, LOG_EXTENSIONS, pieces } from '../src/app/util.js';
+import { isLogFile, KeyReader, keyName, knownRefs, linkKind, listLogs, pieces } from '../src/app/util.js';
 
-const squash = (s) => s.replace(/--[^\n]*/g, '').replace(/\s+/g, '');
-
-describe('copies of casedesk.nvim at the pinned commit', () => {
-  test('TIERS of the door equals logs.TIERS', () => {
-    const door = readFileSync(join(root, 'src', 'casedesk_web.lua'), 'utf8');
-    const own = door.match(/\nlocal TIERS = (\{[\s\S]*?\n\})/);
-    assert.ok(own, 'the door has no "local TIERS = {...}"');
-    assert.equal(squash(own[1]), squash(tiersSource()));
-  });
-
-  test('LOG_EXTENSIONS equals logs.EXTENSIONS', () => {
-    const lock = readLock();
-    const text = execFileSync('git', ['-C', checkout('CASEDESK_NVIM_DIR', 'casedesk.nvim'), 'show', `${lock.casedesk_commit}:lua/casedesk/logs.lua`], { encoding: 'utf8' });
-    const block = text.match(/\nM\.EXTENSIONS = \{([\s\S]*?)\n\}/);
-    assert.ok(block);
-    const exts = [...block[1].matchAll(/^\s*([a-z0-9]+)\s*=\s*true/gm)].map((m) => m[1]);
-    assert.deepEqual([...LOG_EXTENSIONS].sort(), exts.sort());
-  });
-});
+/** Extensions as the door's `logfiles` answers them (the list itself is the core's, checked in engine.test.mjs). */
+const EXT = ['csv', 'json', 'jsonl', 'log', 'ndjson', 'out', 'txt', 'xml'];
 
 describe('which files are logs', () => {
   test('by extension, no redacted copy', () => {
-    assert.ok(isLogFile('device.log'));
-    assert.ok(isLogFile('sub/Server.TXT'));
-    assert.ok(isLogFile('events.ndjson'));
-    assert.ok(!isLogFile('device.redacted.log'));
-    assert.ok(!isLogFile('screen.png'));
-    assert.ok(!isLogFile('notes.ocr.md'));
-    assert.ok(!isLogFile('noext'));
+    assert.ok(isLogFile('device.log', EXT));
+    assert.ok(isLogFile('sub/Server.TXT', EXT));
+    assert.ok(isLogFile('events.ndjson', EXT));
+    assert.ok(!isLogFile('device.redacted.log', EXT));
+    assert.ok(!isLogFile('screen.png', EXT));
+    assert.ok(!isLogFile('notes.ocr.md', EXT));
+    assert.ok(!isLogFile('noext', EXT));
+    assert.ok(!isLogFile('device.log', ['txt']));
   });
 
   test('listLogs walks the folders, sorted by path', async () => {
@@ -50,26 +30,8 @@ describe('which files are logs', () => {
       },
     });
     const root = dir('assets', [file('b.log'), dir('sub', [file('a.txt'), file('x.png')]), file('a.redacted.log'), file('a.log')]);
-    assert.deepEqual((await listLogs(root)).map((l) => l.path), ['a.log', 'b.log', 'sub/a.txt']);
-    assert.deepEqual((await listLogs(root, 0)).map((l) => l.path), ['a.log', 'b.log']);
-  });
-});
-
-describe('decodeLog', () => {
-  const enc = (s) => new TextEncoder().encode(s);
-  test('UTF-8, with and without BOM', () => {
-    assert.deepEqual(decodeLog(enc('Grüße')), { text: 'Grüße', encoding: 'utf-8' });
-    assert.deepEqual(decodeLog(new Uint8Array([0xef, 0xbb, 0xbf, ...enc('ä')])), { text: 'ä', encoding: 'utf-8' });
-  });
-  test('UTF-16 by BOM and by its zero bytes', () => {
-    const le = Buffer.from('ab\r\nc', 'utf16le');
-    assert.equal(decodeLog(new Uint8Array([0xff, 0xfe, ...le])).text, 'ab\r\nc');
-    assert.deepEqual(decodeLog(new Uint8Array(Buffer.from('2026-11-17 line one\n', 'utf16le'))), { text: '2026-11-17 line one\n', encoding: 'utf-16le' });
-    const be = Buffer.from('xy', 'utf16le').swap16();
-    assert.equal(decodeLog(new Uint8Array([0xfe, 0xff, ...be])).text, 'xy');
-  });
-  test('not UTF-8: Windows-1252', () => {
-    assert.deepEqual(decodeLog(new Uint8Array([0x47, 0x72, 0xfc, 0xdf, 0x65, 0x80])), { text: 'Grüße€', encoding: 'windows-1252' });
+    assert.deepEqual((await listLogs(root, EXT)).map((l) => l.path), ['a.log', 'b.log', 'sub/a.txt']);
+    assert.deepEqual((await listLogs(root, EXT, 0)).map((l) => l.path), ['a.log', 'b.log']);
   });
 });
 

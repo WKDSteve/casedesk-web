@@ -24,7 +24,7 @@ the case folder you pick and nothing else, and writes nothing.
 1. Check the file against `SHA256SUMS` (as for the probe below) and open it in Chrome:
    `file:///C:/repos/casedesk-web/casedesk.html` (adjust the path). *Settings → Startzeile für Chrome* gives the line
    for a shortcut that opens it as its own window (the page makes no shortcut itself).
-2. *Fallordner wählen …* and pick a case folder. The page lists the logs under `assets/` (extensions as casedesk.nvim:
+2. *Fallordner wählen …* and pick a case folder. The page lists the logs under `assets/` (extensions of casedesk.nvim's core:
    `log`, `txt`, `out`, `ndjson`, `jsonl`, `json`, `xml`, `csv`; no `*.redacted.*` copies); a folder without
    `assets/` lists its own logs. The folders used before come first next time (*Datei → Zuletzt benutzt*, and on the
    start page); Chrome asks once per visit for the permission to read them.
@@ -94,13 +94,12 @@ The Lua sources come from casedesk.nvim and lib.nvim at the commits of `engine.l
 - The page runs the Lua core of casedesk.nvim (its pure reading-copy modules, `casedesk.web.api` and three pure modules
   of its view: time column and gaps, filter stack, tree nodes) in wasmoon, in a worker. The door is
   `src/casedesk_web.lua`: `open` parses the logs (and the catalog), `view` gives the rows for the settings of the page
-  and the groups of the side bar, `children` unfolds a row, `original` gives original lines. The texts go to the VM as
-  strings beside the request, not inside its JSON.
-- The JavaScript (`src/app/`) only shows what the door answers: no parser, no filter of its own. Two small lists of
-  casedesk.nvim's `lua/casedesk/logs.lua`, which is not part of the pure core, are copied (the words that make a line an
-  error or a warning in a log without levels, the log extensions); `test/app.test.mjs` compares both with the pinned
-  commit. A file's bytes become text as casedesk.nvim reads logs: UTF-8, UTF-16 (by BOM or zero bytes), else
-  Windows-1252.
+  and the groups of the side bar, `children` unfolds a row, `original` gives original lines, `logfiles` names the log
+  extensions and the words of the levels. The files go to the VM as they are, byte for byte, beside the request (not
+  inside its JSON), and the core reads them as casedesk.nvim reads a log (`core.encoding.to_utf8`): UTF-8, UTF-16 (by
+  BOM or zero bytes), else Windows-1252; a file of NUL bytes (UTF-32, binary) is refused.
+- The JavaScript (`src/app/`) only shows what the door answers: no parser, no decoding, no filter and no list of
+  extensions of its own; everything of that comes from the pure core at the pinned commit.
 
 ## Security
 

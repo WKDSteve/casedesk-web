@@ -28,8 +28,20 @@ os.exit = function()
   error("os.exit is not available in the browser", 2)
 end
 require(__web.shim()).install()
-__casedesk_door = require("casedesk_web").door
+local door = require("casedesk_web").door
+-- the files of a call, put here as Lua strings by WebEngine.call (lua_pushlstring: every byte as it is, NUL too)
+__casedesk_staged = {}
+__casedesk_call = function(method, request, n)
+  local blobs = {}
+  for i = 1, n do
+    blobs[i] = __casedesk_staged[i]
+    __casedesk_staged[i] = nil
+  end
+  return door(method, request, table.unpack(blobs, 1, n))
+end
 `;
+
+const utf8 = new TextEncoder();
 
 export class WebEngine {
   /**
@@ -53,19 +65,56 @@ export class WebEngine {
   constructor(lua) {
     this.lua = lua;
     // Taken once: every `global.get` makes a new JS wrapper with its own reference into the Lua registry.
-    this.door = lua.global.get('__casedesk_door');
+    this.door = lua.global.get('__casedesk_call');
   }
 
   /**
-   * One method of the door. `request` is the JSON of the whole request (`{"params": {...}}`) or empty; `blobs` are
-   * texts the request names by number (`blob: 1` is the first), handed to Lua as strings beside the JSON.
+   * Put the files of a call into `__casedesk_staged[1..n]` as Lua strings, byte for byte. wasmoon hands a JS string
+   * to Lua with `lua_pushstring`: as UTF-8 (a byte over 0x7F of a file would become two) and cut at the first NUL (a
+   * UTF-16 log is half NUL bytes). So the bytes go through the VM's memory and `lua_pushlstring` instead; a string
+   * blob (a test, the engine check) goes as its UTF-8.
+   * @param {(string | Uint8Array)[]} blobs
+   */
+  stage(blobs) {
+    const g = this.lua.global;
+    const api = g.lua;
+    const mod = api.module;
+    const L = g.address;
+    const top = api.lua_gettop(L);
+    try {
+      api.lua_getglobal(L, '__casedesk_staged');
+      blobs.forEach((b, i) => {
+        const bytes = typeof b === 'string' ? utf8.encode(b) : b;
+        if (!(bytes instanceof Uint8Array)) throw new Error(`blob ${i + 1} is neither text nor bytes`);
+        const ptr = mod._malloc(bytes.length || 1);
+        if (!ptr) throw new Error(`blob ${i + 1}: no memory for ${bytes.length} bytes`);
+        try {
+          // HEAPU8 is taken after malloc: a malloc that grows the memory replaces the buffer behind it
+          mod.HEAPU8.set(bytes, ptr);
+          // the raw export, not the cwrap: that one reads the returned pointer back as a JS string
+          mod._lua_pushlstring(L, ptr, bytes.length);
+        } finally {
+          mod._free(ptr);
+        }
+        api.lua_rawseti(L, -2, BigInt(i + 1)); // a lua_Integer: 64 bits, a BigInt in JS
+      });
+    } finally {
+      api.lua_settop(L, top);
+    }
+  }
+
+  /**
+   * One method of the door. `request` is the JSON of the whole request (`{"params": {...}}`) or empty; `blobs` are the
+   * files the request names by number (`blob: 1` is the first): their bytes (a `Uint8Array`), or a text, handed to Lua
+   * as strings beside the JSON; the door reads each as casedesk.nvim reads a log (`core.encoding.to_utf8`).
    * @param {string} method
    * @param {string | null} [request]
-   * @param {string[]} [blobs]
+   * @param {(string | Uint8Array)[]} [blobs]
    * @returns {{ text: string, code: string | null }}
    */
   call(method, request, blobs = []) {
-    const raw = String(this.door(method, request ?? '', ...blobs));
+    this.stage(blobs);
+    const raw = String(this.door(method, request ?? '', blobs.length));
     const nl = raw.indexOf('\n');
     const code = raw.slice(0, nl);
     return { text: raw.slice(nl + 1), code: code === '' ? null : code };

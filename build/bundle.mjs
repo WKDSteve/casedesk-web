@@ -32,8 +32,6 @@ export const VIEW_MODULES = [
   'lua/casedesk/logview/view/nodes.lua',
 ];
 
-/** The file the levels of formats without one come from (`logs.TIERS`); the door holds a copy, test/door checks it. */
-export const TIERS_SOURCE = 'lua/casedesk/logs.lua';
 
 /** The fixture of the engine check: an invented BrowserStack device log of casedesk.nvim's tests. */
 export const FIXTURE = 'TESTS/fixtures/logview/browserstack-device.log';
@@ -145,15 +143,6 @@ export function fixtures(lock = readLock()) {
     out[path.slice(FIXTURE_DIR.length)] = bytes.toString('utf8');
   }
   return out;
-}
-
-/** `TIERS` of casedesk.nvim's logs.lua at the pinned commit, as written there (the door's copy must equal it). */
-export function tiersSource(lock = readLock()) {
-  const casedeskDir = checkout('CASEDESK_NVIM_DIR', 'casedesk.nvim');
-  const text = gitFiles(casedeskDir, lock.casedesk_commit, [TIERS_SOURCE]).get(TIERS_SOURCE).toString('utf8');
-  const m = text.match(/\nlocal TIERS = (\{[\s\S]*?\n\})/);
-  if (!m) throw new Error(`${TIERS_SOURCE}: no "local TIERS = {...}"`);
-  return m[1];
 }
 
 /** The part of a bundle the page carries: the pins, the entry and shim of the core, the sources. */

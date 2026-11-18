@@ -41,7 +41,37 @@ describe('the door in wasmoon', () => {
     const doc = ok('hello');
     assert.equal(doc.kind, 'casedesk-web.hello');
     assert.equal(doc.lua, 'Lua 5.4');
-    assert.equal(doc.api, 1);
+    assert.equal(doc.api, 2);
+  });
+
+  test('logfiles: the extensions and the tier words of the pure core', () => {
+    const doc = ok('logfiles');
+    assert.equal(doc.kind, 'casedesk-web.logfiles');
+    assert.deepEqual(doc.extensions, ['csv', 'json', 'jsonl', 'log', 'ndjson', 'out', 'txt', 'xml']);
+    assert.equal(doc.tiers.length, 2);
+    assert.ok(doc.tiers[0].includes('error') && doc.tiers[1].includes('warn'));
+  });
+
+  test("a file's bytes as casedesk.nvim reads a log: UTF-8, UTF-16, Windows-1252, NUL refused", () => {
+    const text = (bytes) => ok('reading_copy', { name: 'x.log', blob: 1 }, [bytes]).entries.map((e) => e.text);
+    const enc = (s) => new TextEncoder().encode(s);
+    assert.deepEqual(text(enc('Grüße')), ['Grüße'], 'UTF-8');
+    assert.deepEqual(text(new Uint8Array([0xef, 0xbb, 0xbf, ...enc('ä')])), ['ä'], 'UTF-8 with BOM');
+    assert.deepEqual(text(new Uint8Array([0xff, 0xfe, ...Buffer.from('ab\r\nc', 'utf16le')])), ['ab', 'c'], 'UTF-16 LE by BOM');
+    assert.deepEqual(text(new Uint8Array(Buffer.from('2026-11-17 line one\n', 'utf16le'))), ['2026-11-17 line one'], 'UTF-16 LE by its zero bytes');
+    assert.deepEqual(text(new Uint8Array([0xfe, 0xff, ...Buffer.from('xy', 'utf16le').swap16()])), ['xy'], 'UTF-16 BE by BOM');
+    assert.deepEqual(text(new Uint8Array([0x47, 0x72, 0xfc, 0xdf, 0x65, 0x80])), ['Grüße€'], 'Windows-1252');
+    // every byte reaches Lua as it is: a NUL in the middle, a byte over 0x7F (a JS string would be cut or re-encoded)
+    const refused = call('reading_copy', { name: 'x.log', blob: 1 }, [new Uint8Array([0, 0, 0, 0x41, 0, 0, 0, 0x42])]);
+    assert.equal(refused.code, 'bad_request');
+    assert.match(refused.doc.message, /NUL/);
+  });
+
+  test('files of a call leave nothing behind: the Lua stack and the staging table stay empty', () => {
+    const top = engine.lua.global.lua.lua_gettop(engine.lua.global.address);
+    for (let i = 0; i < 100; i++) ok('reading_copy', { name: 'x.log', blob: 1 }, [new Uint8Array([0x61 + (i % 26)])]);
+    assert.equal(engine.lua.global.lua.lua_gettop(engine.lua.global.address), top);
+    assert.equal(engine.lua.doStringSync('return next(__casedesk_staged) == nil'), true);
   });
 
   test('the reading copy of the fixture in one piece (the engine check)', () => {
@@ -167,7 +197,10 @@ describe('the door in wasmoon', () => {
 /** The calls both VMs answer: every fixture opened, viewed in each time mode, unfolded two levels; a merge with a catalog. */
 function scenario() {
   const calls = [{ method: 'reading_copy', params: { name: 'device.log', blob: 1 }, blobs: [b.fixture] }];
-  for (const [name, text] of Object.entries(fx).sort()) {
+  // archive/ holds .gz, .zip and the script that makes them: no log the page opens (yet: its own task), and their NUL
+  // bytes are refused by the door's decoding, in both VMs alike
+  const logs = Object.entries(fx).filter(([name]) => !name.startsWith('archive/'));
+  for (const [name, text] of logs.sort()) {
     calls.push({ method: 'open', params: { logs: [{ name, blob: 1 }], catalog: { blob: 2 } }, blobs: [text, CATALOG] });
     calls.push({ method: 'view', params: {}, unfold: 2 });
     calls.push({ method: 'view', params: { time: 'utc', repeats: false } });

@@ -262,10 +262,17 @@ test('the catalog of known messages, and a reload keeps the folder and the catal
   await expect(known.locator('summary')).toHaveText('Bekannt (1)');
   await expect(known).toContainText('✱ Invented idle timeout · warn');
   await expect(known).toContainText('An invented explanation: the session sat idle for too long.');
-  await expect(known.locator('a')).toHaveAttribute('href', 'https://example.invalid/kb/0000001');
-  await expect(known.locator('a')).toHaveAttribute('target', '_blank');
+  const kb = known.locator('a[href="https://example.invalid/kb/0000001"]');
+  await expect(kb).toHaveText('https://example.invalid/kb/0000001');
+  await expect(kb).toHaveAttribute('target', '_blank');
   await expect(known).toContainText('KB0000001');
   await expect(known).toContainText('Fall 4711');
+  // the task and the ticket the catalog names: the task by its id (no vault in the browser), the ticket as a link
+  await expect(known.locator('.ref').filter({ hasText: 'Task:' })).toHaveText('Task: casedesk.nvim/example-idle-fix');
+  const ticket = known.locator('.ref').filter({ hasText: 'Ticket:' });
+  await expect(ticket).toHaveText('Ticket: https://example.invalid/ticket/EX-0001');
+  await expect(ticket.locator('a')).toHaveAttribute('href', 'https://example.invalid/ticket/EX-0001');
+  await expect(ticket.locator('a')).toHaveAttribute('target', '_blank');
   await keys(page, 'g', 'g', ']', 'k');
   await expect(cursor(page)).toHaveAttribute('data-id', 'e11');
   await expect(page.locator('#message')).toHaveText('known: Invented idle timeout [warn]');

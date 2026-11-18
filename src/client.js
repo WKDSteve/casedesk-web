@@ -31,7 +31,8 @@ export async function unpackPart(id) {
 
 /**
  * A classic worker from a blob: a module worker from a blob does not start on a page opened from disk. `call` answers
- * `{ text, code, ms }`; `blobs` are texts the request names by number (`blob: 1` is the first).
+ * `{ text, code, ms }`; `blobs` are the files the request names by number (`blob: 1` is the first): their bytes (a
+ * `Uint8Array`, moved to the worker) or a text.
  */
 export function startEngineWorker(source) {
   const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
@@ -61,15 +62,20 @@ export function startEngineWorker(source) {
     ready: readyP,
     call(method, params, blobs) {
       const id = next++;
+      // a file's bytes move to the worker instead of being copied (the page reads the file again on reload)
+      const moved = [...new Set((blobs ?? []).filter((b) => b instanceof Uint8Array).map((b) => b.buffer))];
       return new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
-        worker.postMessage({
-          type: 'call',
-          id,
-          method,
-          request: params === undefined ? null : JSON.stringify({ params }),
-          blobs: blobs ?? [],
-        });
+        worker.postMessage(
+          {
+            type: 'call',
+            id,
+            method,
+            request: params === undefined ? null : JSON.stringify({ params }),
+            blobs: blobs ?? [],
+          },
+          moved,
+        );
       });
     },
   };

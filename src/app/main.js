@@ -44,6 +44,8 @@ const MAX_OPEN_ALL = 2000;
 
 const st = {
   engine: null,
+  engineStart: null,
+  extensions: null,
   kv: null,
   recent: null,
   settings: loadSettings(),
@@ -125,6 +127,16 @@ async function busy(fn) {
     st.busy--;
     if (st.busy === 0) delete document.body.dataset.busy;
   }
+}
+
+/** The extensions of logs (door `logfiles`), asked once the core runs: a folder chosen before that waits for it. */
+async function logExtensions() {
+  if (!st.extensions) {
+    if (!st.engineStart) throw new Error('der Lua-Kern ist noch nicht gestartet');
+    st.engine ??= await st.engineStart;
+    st.extensions = list((await door('logfiles')).extensions);
+  }
+  return st.extensions;
 }
 
 /** One call of the door; an error answer throws. */
@@ -461,7 +473,7 @@ async function useFolder(handle) {
   await busy(async () => {
     const assets = await childFolder(handle, ASSETS);
     const dir = assets ?? handle;
-    const logs = await listLogs(dir);
+    const logs = await listLogs(dir, await logExtensions());
     st.folder = { handle, name: displayName(handle.name), caseName: await caseName(handle), logs, assets: Boolean(assets) };
     closeLog(true);
     renderWhere();
@@ -512,7 +524,7 @@ function showLogPicker() {
       ),
       f.logs.length
         ? h('table', { class: 'logs', id: 'logs' }, h('thead', {}, h('tr', {}, h('th', {}), h('th', {}, 'Log'), h('th', {}, 'Größe'))), h('tbody', {}, rows))
-        : h('p', { class: 'hint' }, 'Keine Logs gefunden (Endungen: ' + LOG_EXTENSIONS.join(', ') + ').'),
+        : h('p', { class: 'hint' }, 'Keine Logs gefunden (Endungen: ' + (st.extensions ?? []).join(', ') + ').'),
       f.logs.length > 1 ? mergeButton : null,
     ),
   );
@@ -529,8 +541,11 @@ function showLogPicker() {
   });
 }
 
-/** Ask again for the catalog file when its permission lapsed (inside the click that opens a log). */
-async function catalogText() {
+/**
+ * The catalog file's bytes (the core reads them as text), asking again for its permission when it lapsed (inside the
+ * click that opens a log).
+ */
+async function catalogBytes() {
   const c = st.catalog;
   if (!c) return null;
   if (c.handle.queryPermission) {
@@ -543,7 +558,7 @@ async function catalogText() {
     }
   }
   try {
-    return decodeLog(new Uint8Array(await (await c.handle.getFile()).arrayBuffer())).text;
+    return new Uint8Array(await (await c.handle.getFile()).arrayBuffer());
   } catch (e) {
     say(`Katalog ${c.name} nicht lesbar: ${errText(e)}`);
     return null;
@@ -552,16 +567,17 @@ async function catalogText() {
 
 async function openLogs(chosen) {
   // the catalog's permission first: a request needs the click that is still running
-  const catalog = await catalogText();
+  const catalog = await catalogBytes();
   await busy(async () => {
-    const texts = [];
+    // the bytes as they are: the core reads them as casedesk.nvim reads a log (UTF-16, Windows-1252)
+    const files = [];
     for (const l of chosen) {
       const file = await l.handle.getFile();
       if (file.size > MAX_LOG_BYTES) throw new Error(`${l.path}: größer als ${formatSize(MAX_LOG_BYTES)}`);
-      texts.push(decodeLog(new Uint8Array(await file.arrayBuffer())).text);
+      files.push(new Uint8Array(await file.arrayBuffer()));
     }
     const params = { logs: chosen.map((l, i) => ({ name: l.path.split('/').at(-1), blob: i + 1 })) };
-    const blobs = [...texts];
+    const blobs = [...files];
     if (catalog !== null) {
       blobs.push(catalog);
       params.catalog = { blob: blobs.length };
@@ -1352,7 +1368,8 @@ async function main() {
   say('Lua-Kern startet …');
   try {
     const t0 = performance.now();
-    st.engine = await startEngine();
+    st.engineStart = startEngine();
+    st.engine = await st.engineStart;
     say(`Bereit (Lua-Kern in ${Math.round(performance.now() - t0)} ms gestartet)`);
     document.body.dataset.state = 'ready';
   } catch (e) {

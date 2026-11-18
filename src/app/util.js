@@ -1,12 +1,7 @@
-// What the reading copy page needs that has nothing to do with the screen: which files of a case are logs, how a file's
-// bytes become text, a label's byte spans as pieces of text, the keys as Neovim reads them. Plain functions, so that
-// Node tests them (test/app.test.mjs) and build/pack.mjs puts them into the page as they are (`export` dropped).
-
-/**
- * File extensions offered as logs: a copy of `M.EXTENSIONS` of casedesk.nvim's `lua/casedesk/logs.lua` (not part of the
- * pure core, it lists files); test/app.test.mjs checks it against the pinned commit.
- */
-export const LOG_EXTENSIONS = ['log', 'txt', 'out', 'ndjson', 'jsonl', 'json', 'xml', 'csv'];
+// What the reading copy page needs that has nothing to do with the screen: which files of a case are logs, a label's
+// byte spans as pieces of text, the keys as Neovim reads them. Plain functions, so that Node tests them
+// (test/app.test.mjs) and build/pack.mjs puts them into the page as they are (`export` dropped). Which extensions
+// are logs, and how a file's bytes become text, the Lua core answers (door `logfiles`, and `open` reads the bytes).
 
 /** The folder of a case the logs are in (`config.assets_dirname`). */
 export const ASSETS = 'assets';
@@ -14,28 +9,34 @@ export const ASSETS = 'assets';
 /** Largest file the page reads (`casedesk.web.api.MAX_TEXT`). */
 export const MAX_LOG_BYTES = 64 * 1024 * 1024;
 
-/** Whether `path` (`/`-separated, below `assets/`) is offered as a log: a log extension, no redacted copy. */
-export function isLogFile(path) {
+/**
+ * Whether `path` (`/`-separated, below `assets/`) is offered as a log: one of `extensions` (door `logfiles`), no
+ * redacted copy.
+ * @param {string} path
+ * @param {string[]} extensions
+ */
+export function isLogFile(path, extensions) {
   const name = String(path).split('/').at(-1) ?? '';
   if (/\.redacted\.\w+$/i.test(name)) return false;
   const ext = (name.match(/\.(\w+)$/)?.[1] ?? '').toLowerCase();
-  return LOG_EXTENSIONS.includes(ext);
+  return extensions.includes(ext);
 }
 
 /**
  * The log files under a folder handle (`values()` of the File System Access API), path relative to it, sorted like
  * `logs.candidates` (by path). Folders deeper than `maxDepth` are not walked.
  * @param {{ values(): AsyncIterable<any> }} dir
+ * @param {string[]} extensions  door `logfiles`
  * @returns {Promise<{ path: string, handle: any }[]>}
  */
-export async function listLogs(dir, maxDepth = 8) {
+export async function listLogs(dir, extensions, maxDepth = 8) {
   const out = [];
   const walk = async (d, prefix, depth) => {
     for await (const h of d.values()) {
       const path = prefix ? `${prefix}/${h.name}` : h.name;
       if (h.kind === 'directory') {
         if (depth < maxDepth) await walk(h, path, depth + 1);
-      } else if (isLogFile(path)) {
+      } else if (isLogFile(path, extensions)) {
         out.push({ path, handle: h });
       }
     }
@@ -54,43 +55,6 @@ export async function childFolder(dir, name) {
 export async function childFile(dir, name) {
   for await (const h of dir.values()) if (h.kind === 'file' && h.name === name) return h;
   return null;
-}
-
-/** Which byte order a text without a BOM in UTF-16 has, from the zero bytes of its start; null when it is not UTF-16. */
-function utf16Order(bytes) {
-  const n = Math.min(bytes.length, 4096) & ~1;
-  if (n < 4) return null;
-  let even = 0;
-  let odd = 0;
-  for (let i = 0; i < n; i += 2) {
-    if (bytes[i] === 0) even++;
-    if (bytes[i + 1] === 0) odd++;
-  }
-  const half = n / 2;
-  if (odd > half * 0.3 && even < half * 0.05) return 'utf-16le';
-  if (even > half * 0.3 && odd < half * 0.05) return 'utf-16be';
-  return null;
-}
-
-/**
- * A file's bytes as text, as casedesk.nvim's `logs.to_utf8` reads a log: UTF-8 (BOM dropped), UTF-16 by its BOM or by
- * its zero bytes, else Windows-1252 (logs of Windows tools that are not UTF-8).
- * @param {Uint8Array} bytes
- * @returns {{ text: string, encoding: string }}
- */
-export function decodeLog(bytes) {
-  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
-    return { text: new TextDecoder('utf-8').decode(bytes.subarray(3)), encoding: 'utf-8' };
-  }
-  if (bytes[0] === 0xff && bytes[1] === 0xfe) return { text: new TextDecoder('utf-16le').decode(bytes.subarray(2)), encoding: 'utf-16le' };
-  if (bytes[0] === 0xfe && bytes[1] === 0xff) return { text: new TextDecoder('utf-16be').decode(bytes.subarray(2)), encoding: 'utf-16be' };
-  const order = utf16Order(bytes);
-  if (order) return { text: new TextDecoder(order).decode(bytes), encoding: order };
-  try {
-    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes), encoding: 'utf-8' };
-  } catch {
-    return { text: new TextDecoder('windows-1252').decode(bytes), encoding: 'windows-1252' };
-  }
 }
 
 /**

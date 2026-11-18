@@ -1,4 +1,4 @@
 # The Lua sources the pages carry: casedesk.nvim and lib.nvim at these commits (both on origin/main of their
 # repositories). build/bundle.mjs reads them from the git objects of these commits, never from a working tree.
-casedesk_commit = 6fc05dbcbc52967f15f98afade2c4b0248f8f920
-lib_commit = 4f385bb9e5e014e42beb9246b60c39b4d2570c7e
+casedesk_commit = eaeef11da04db733985384c1138f1545ec10656b
+lib_commit = 8217e4c2f80b4e6ed3c477c8ddf98078b6b8b090

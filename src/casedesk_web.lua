@@ -6,8 +6,11 @@
 --- (`casedesk.logview.core.*`, `casedesk.logview.formats.*`, `casedesk.web.api`) and the pure parts of its view
 --- (`view.clock`: time column and gaps, `view.filter`: the filter stack, `view.nodes`: what an entry unfolds to).
 ---
---- The texts (a log, a catalog) come as extra arguments of `door`, not inside the JSON request: decoding megabytes of
---- JSON in Lua is slow, and the page has the text as a string already. A request names them by number (`blob = 1`).
+--- The files (a log, a catalog) come as extra arguments of `door`, not inside the JSON request: decoding megabytes of
+--- JSON in Lua is slow. A request names them by number (`blob = 1`). They are a file's bytes as they are (the page
+--- hands them in with `lua_pushlstring`, src/engine.js), and the door reads them as casedesk.nvim reads a log:
+--- `casedesk.logview.core.encoding.to_utf8` (UTF-16, Windows-1252, NUL padding). Text that is UTF-8 already passes
+--- unchanged.
 ---
 --- The log the page shows stays in this VM (`S`) between calls: `open` parses it, `view` gives the rows for the
 --- settings of the page, `children` unfolds a row. Nothing of it leaves the page's memory.
@@ -15,33 +18,6 @@
 local M = {}
 
 M.SCHEMA = 2
-
---- Lines that carry the failure, strongest first: a copy of `TIERS` of casedesk.nvim's `lua/casedesk/logs.lua`,
---- which is not part of the pure core (it lists files). test/door.test.mjs checks that it equals the pinned one.
--- stylua: ignore start
-local TIERS = {
-  { "error", "exception", "fatal", "crash", "unhandled", "fail", "panic", "traceback" },
-  { "warn", "timeout", "timed out", "denied", "refused", "invalid", "cannot ", "could not" },
-}
--- stylua: ignore end
-
---- `logs.tier_of` of casedesk.nvim: 1 (error words), 2 (warning words, an HRESULT-like `0x…`) or nil.
----@param line string
----@return integer|nil
-function M.tier_of(line)
-  local lower = line:lower()
-  for tier, words in ipairs(TIERS) do
-    for _, word in ipairs(words) do
-      if lower:find(word, 1, true) then
-        return tier
-      end
-    end
-  end
-  if lower:find("0x%x%x%x%x%x%x%x%x") then
-    return 2
-  end
-  return nil
-end
 
 --- Widest source shown on a row (`view.render.SOURCE_WIDTH`).
 M.SOURCE_WIDTH = 40
@@ -99,15 +75,20 @@ local function need_open()
   return S
 end
 
---- A text argument named by `blob` in a request.
+--- A file named by `blob` in a request, as text: its bytes read by `core.encoding.to_utf8`. A file that is no text
+--- (NUL bytes: UTF-32, binary) is refused.
 ---@param blobs string[]
 ---@param n any
 ---@param what string
 ---@return string
 local function blob(blobs, n, what)
-  local text = type(n) == "number" and blobs[n] or nil
-  if type(text) ~= "string" then
+  local bytes = type(n) == "number" and blobs[n] or nil
+  if type(bytes) ~= "string" then
     bad(what .. ": blob " .. tostring(n) .. " is not there")
+  end
+  local text, err = require("casedesk.logview.core.encoding").to_utf8(bytes)
+  if not text then
+    bad(what .. ": " .. tostring(err))
   end
   return text
 end
@@ -121,7 +102,7 @@ local function level_of(doc, e)
   if e.level or doc.format.has_levels then
     return e.level
   end
-  local tier = M.tier_of(e.text)
+  local tier = require("casedesk.logview.core.tier").of(e.text)
   return tier == 1 and "error" or tier == 2 and "warn" or nil
 end
 
@@ -167,6 +148,9 @@ local function catalog_item(item, index)
     explain = item.explain or "",
     severity = item.severity,
     links = item.links or {},
+    -- the task of the fix and a ticket (log-patterns.md), optional
+    task = item.task or vim.NIL,
+    ticket = item.ticket or vim.NIL,
   }
 end
 
@@ -630,6 +614,16 @@ local METHODS = {
       lua = _VERSION,
       jit = type(jit) == "table" and jit.version or vim.NIL,
       api = api.ok and api.result.version or vim.NIL,
+    }
+  end,
+  -- which files are logs (the extensions) and the words of the tiers, from the pure core: the page needs no copy
+  logfiles = function()
+    local lf = require("casedesk.web.api").logfiles()
+    return {
+      kind = "casedesk-web.logfiles",
+      schema = M.SCHEMA,
+      extensions = lf.extensions,
+      tiers = lf.tiers,
     }
   end,
   reading_copy = function(params, blobs)
