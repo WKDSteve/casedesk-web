@@ -591,6 +591,7 @@ async function openLogs(chosen) {
     await refreshView({ keep: false });
     renderWhere();
     say(`${chosen.map((l) => l.path).join(' + ')}: ${summary.entries} Einträge in ${Math.round(performance.now() - t0)} ms`);
+    if (summary.catalog_error) say(`Katalog ${st.catalog?.name ?? ''} ist kein Text (${summary.catalog_error}): das Log wird ohne Katalog gezeigt`);
     $('log').focus();
   });
 }

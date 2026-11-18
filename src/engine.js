@@ -35,8 +35,9 @@ __casedesk_call = function(method, request, n)
   local blobs = {}
   for i = 1, n do
     blobs[i] = __casedesk_staged[i]
-    __casedesk_staged[i] = nil
   end
+  -- a fresh table each call: what a failed staging left behind goes with the old one
+  __casedesk_staged = {}
   return door(method, request, table.unpack(blobs, 1, n))
 end
 `;

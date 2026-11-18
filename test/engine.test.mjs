@@ -65,6 +65,12 @@ describe('the door in wasmoon', () => {
     const refused = call('reading_copy', { name: 'x.log', blob: 1 }, [new Uint8Array([0, 0, 0, 0x41, 0, 0, 0, 0x42])]);
     assert.equal(refused.code, 'bad_request');
     assert.match(refused.doc.message, /NUL/);
+    // a catalog that is no text leaves the log readable: shown without a catalog, the reason named
+    const binaryCatalog = ok('open', { logs: [{ name: 'x.log', blob: 1 }], catalog: { blob: 2 } }, [enc('one line'), new Uint8Array(64)]);
+    assert.equal(binaryCatalog.entries, 1);
+    assert.equal(binaryCatalog.catalog, null);
+    assert.match(binaryCatalog.catalog_error, /NUL/);
+    assert.equal(ok('open', { logs: [{ name: 'x.log', blob: 1 }] }, ['one line']).catalog_error, null);
   });
 
   test('files of a call leave nothing behind: the Lua stack and the staging table stay empty', () => {

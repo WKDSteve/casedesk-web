@@ -80,14 +80,19 @@ end
 ---@param blobs string[]
 ---@param n any
 ---@param what string
----@return string
-local function blob(blobs, n, what)
+---@param soft? boolean  a file that is no text answers `nil, reason` instead of refusing the request
+---@return string|nil text
+---@return string|nil reason
+local function blob(blobs, n, what, soft)
   local bytes = type(n) == "number" and blobs[n] or nil
   if type(bytes) ~= "string" then
     bad(what .. ": blob " .. tostring(n) .. " is not there")
   end
   local text, err = require("casedesk.logview.core.encoding").to_utf8(bytes)
   if not text then
+    if soft then
+      return nil, tostring(err)
+    end
     bad(what .. ": " .. tostring(err))
   end
   return text
@@ -266,13 +271,21 @@ local function open(p, blobs)
     end
   end
 
-  local catalog
+  -- a catalog that is no text (a binary file chosen as the catalog) leaves the log readable: shown without a catalog,
+  -- the reason in `catalog_error`
+  local catalog, catalog_error
   if p.catalog ~= nil then
     local core_catalog = require("casedesk.logview.core.catalog")
-    local text = blob(blobs, type(p.catalog) == "table" and p.catalog.blob or nil, "catalog")
-    local items, problems = core_catalog.parse(text, "log-patterns.conf")
-    local match = core_catalog.match(doc, items)
-    catalog = { items = items, problems = problems, by_entry = match.by_entry, count = match.count }
+    local text, err =
+      blob(blobs, type(p.catalog) == "table" and p.catalog.blob or nil, "catalog", true)
+    if text then
+      local items, problems = core_catalog.parse(text, "log-patterns.conf")
+      local match = core_catalog.match(doc, items)
+      catalog =
+        { items = items, problems = problems, by_entry = match.by_entry, count = match.count }
+    else
+      catalog_error = err
+    end
   end
 
   local prev_mode = S and S.mode or "labelled"
@@ -323,6 +336,7 @@ local function open(p, blobs)
       count = catalog.count,
       size = #catalog.items,
     } or vim.NIL,
+    catalog_error = catalog_error or vim.NIL,
   }
 end
 
