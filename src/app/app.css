@@ -2,41 +2,22 @@
 
 :root {
   color-scheme: light dark;
-  --bg: #fbfbfa;
-  --fg: #1f2328;
-  --dim: #6e7781;
-  --line: #d8dee4;
-  --panel: #f3f4f6;
-  --hover: #e8ecf1;
-  --cursor: #dbe9ff;
-  --accent: #0b5cad;
-  --error: #c62828;
-  --warn: #9a6700;
-  --known: #6a3fb5;
-  --gap: #b35900;
-  --key: #0550ae;
-  --value: #116329;
+  --bg: light-dark(#fbfbfa, #16191d);
+  --fg: light-dark(#1f2328, #d6dbe0);
+  --dim: light-dark(#6e7781, #8b949e);
+  --line: light-dark(#d8dee4, #30363d);
+  --panel: light-dark(#f3f4f6, #1d2127);
+  --hover: light-dark(#e8ecf1, #262c34);
+  --cursor: light-dark(#dbe9ff, #1f3550);
+  --accent: light-dark(#0b5cad, #6cb6ff);
+  --error: light-dark(#c62828, #ff7b72);
+  --warn: light-dark(#9a6700, #d29922);
+  --known: light-dark(#6a3fb5, #c4a7ff);
+  --gap: light-dark(#b35900, #f0883e);
+  --key: light-dark(#0550ae, #79c0ff);
+  --value: light-dark(#116329, #7ee787);
   --mono: ui-monospace, 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
   --sans: system-ui, 'Segoe UI', sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16191d;
-    --fg: #d6dbe0;
-    --dim: #8b949e;
-    --line: #30363d;
-    --panel: #1d2127;
-    --hover: #262c34;
-    --cursor: #1f3550;
-    --accent: #6cb6ff;
-    --error: #ff7b72;
-    --warn: #d29922;
-    --known: #c4a7ff;
-    --gap: #f0883e;
-    --key: #79c0ff;
-    --value: #7ee787;
-  }
 }
 
 * {

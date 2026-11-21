@@ -7,46 +7,27 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <title>casedesk</title>
-<!-- casedesk-web, the reading copy of case logs, build 852c05cb0d60, casedesk.nvim eaeef11, lib.nvim 8217e4c. Third-party code inside: Lua 5.4 and wasmoon 1.16.0 (MIT); see THIRD-PARTY-NOTICES.md -->
+<!-- casedesk-web, the reading copy of case logs, build 0ed01ac3ac2f, casedesk.nvim eaeef11, lib.nvim 8217e4c. Third-party code inside: Lua 5.4 and wasmoon 1.16.0 (MIT); see THIRD-PARTY-NOTICES.md -->
 <style>/* casedesk.html: menu bar on top, the reading copy, the side bar on the right, the status line at the bottom. */
 
 :root {
   color-scheme: light dark;
-  --bg: #fbfbfa;
-  --fg: #1f2328;
-  --dim: #6e7781;
-  --line: #d8dee4;
-  --panel: #f3f4f6;
-  --hover: #e8ecf1;
-  --cursor: #dbe9ff;
-  --accent: #0b5cad;
-  --error: #c62828;
-  --warn: #9a6700;
-  --known: #6a3fb5;
-  --gap: #b35900;
-  --key: #0550ae;
-  --value: #116329;
+  --bg: light-dark(#fbfbfa, #16191d);
+  --fg: light-dark(#1f2328, #d6dbe0);
+  --dim: light-dark(#6e7781, #8b949e);
+  --line: light-dark(#d8dee4, #30363d);
+  --panel: light-dark(#f3f4f6, #1d2127);
+  --hover: light-dark(#e8ecf1, #262c34);
+  --cursor: light-dark(#dbe9ff, #1f3550);
+  --accent: light-dark(#0b5cad, #6cb6ff);
+  --error: light-dark(#c62828, #ff7b72);
+  --warn: light-dark(#9a6700, #d29922);
+  --known: light-dark(#6a3fb5, #c4a7ff);
+  --gap: light-dark(#b35900, #f0883e);
+  --key: light-dark(#0550ae, #79c0ff);
+  --value: light-dark(#116329, #7ee787);
   --mono: ui-monospace, 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
   --sans: system-ui, 'Segoe UI', sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16191d;
-    --fg: #d6dbe0;
-    --dim: #8b949e;
-    --line: #30363d;
-    --panel: #1d2127;
-    --hover: #262c34;
-    --cursor: #1f3550;
-    --accent: #6cb6ff;
-    --error: #ff7b72;
-    --warn: #d29922;
-    --known: #c4a7ff;
-    --gap: #f0883e;
-    --key: #79c0ff;
-    --value: #7ee787;
-  }
 }
 
 * {
@@ -3147,7 +3128,7 @@ Qa8ffBq2SxPzOb4lTRAznA6mI6rNle9NXCV9AGvFdtUDyhsBt+Lx94QD9LZv4K09iRgPv26IHk+MRsO/
 uJFMYjugliNSgO/AsJPDHWLkOt1iRFOCFsMkhoKUEUrR5FCDGWpN13s7zCK73oP5VZfY0i/YKyodsQME/O0HNaU6I3oqCew1h8seGaE4yoKx8+bZH4E1Rx9j
 8mxw7jHJjqxSRoWYb/qki0Yfv77+fw0lrnQTpwQA
 </script>
-<script type="module">const PAGE = {"build":"852c05cb0d60","engine":"casedesk.nvim eaeef11, lib.nvim 8217e4c"};
+<script type="module">const PAGE = {"build":"0ed01ac3ac2f","engine":"casedesk.nvim eaeef11, lib.nvim 8217e4c"};
 // The folder the person works in, in an app's web variant: choosing it (File System Access API), the folders used
 // before (their handles in IndexedDB), and the permission to read them, which the browser asks again after a restart.
 //
