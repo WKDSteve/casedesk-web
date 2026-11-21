@@ -20,12 +20,12 @@ casedesk.nvim running in wasmoon (Lua 5.4 in WebAssembly). See [README.md](READM
 - Supply chain: `pnpm-workspace.yaml` holds the rules (release age, no install scripts); do not loosen them.
 
 ## Web platform
-- Browser Support: Baseline Widely available (`.mwgrc`, `browserslist`). Newer features only behind feature detection with a fallback; polyfills where browsers still in use need them (rather one too many), run only after the check: dynamic `import()`, or bundled in a `file://` page (rules-vault `BASE-02`).
+- Browser Support: Baseline Widely available (`.mwgrc`, `browserslist`). Newer features only behind feature detection with a fallback; polyfills where browsers still in use need them (rather one too many), run only after the check: dynamic `import()`, or bundled in a `file://` page.
 - Before writing or changing HTML, CSS or client-side JS, use the `modern-web-guidance` skill (`search` → `retrieve` → verify). Not for Rust, backend, CI or build config.
 - For open-ended modernisation: `npx -y modern-web-guidance@latest legacy-scan <ui-dir> --json`, check each finding against `keepWhen`/`dropWhen`.
-- Rules: rules-vault ruleset `web` (plus the app rules `WEB-*` in ruleset `native`).
+- Rules: the maintainer's ruleset for the web platform (private, so not named or cited here by id).
 - This page runs as one `file://` file with `default-src 'none'`: it loads nothing at run time, so a polyfill is
-  bundled into the page and called only when the feature check fails (rules-vault `BASE-02`, decided 2026-11-21).
+  bundled into the page and called only when the feature check fails (decided 2026-11-21).
 - `modern-web-guidance` is an exact devDependency (`1.0.0`, under the release-age quarantine of
   `pnpm-workspace.yaml`); the CI (`.github/workflows/ci.yml`) runs
   `DISABLE_TELEMETRY=1 pnpm exec modern-web-guidance legacy-scan src --json` as an advisory step (`continue-on-error`),
