@@ -14,7 +14,8 @@ casedesk.nvim running in wasmoon (Lua 5.4 in WebAssembly). See [README.md](READM
   not in the page.
 - Never put a log, a line of it, a case file or the catalog's text into browser storage (IndexedDB holds handles,
   `localStorage` the view settings).
-- Checks (see README, *Building and testing*): `pnpm build`, `node build/pack.mjs --check`, `pnpm test`, `pnpm e2e`.
+- Checks (see README, *Building and testing*): `pnpm build`, `node build/pack.mjs --check`, `pnpm test`, `pnpm e2e`;
+  the CI (`.github/workflows/ci.yml`, on a push to `main`) runs all of them with the checkouts at `engine.lock`.
   The build needs the checkouts of casedesk.nvim and lib.nvim (`CASEDESK_NVIM_DIR`, `LIB_NVIM_DIR` or `REPOS_DIR`).
 - Supply chain: `pnpm-workspace.yaml` holds the rules (release age, no install scripts); do not loosen them.
 
@@ -25,5 +26,8 @@ casedesk.nvim running in wasmoon (Lua 5.4 in WebAssembly). See [README.md](READM
 - Rules: rules-vault ruleset `web` (plus the app rules `WEB-*` in ruleset `native`).
 - This page runs as one `file://` file with `default-src 'none'`: it loads nothing at run time, so a polyfill is
   bundled into the page and called only when the feature check fails (rules-vault `BASE-02`, decided 2026-11-21).
-- `.claude/settings.json` turns the tool's telemetry off and allows only `npx -y modern-web-guidance@latest *`. There
-  is no CI yet; run `npx -y modern-web-guidance@latest legacy-scan src --json` locally.
+- `modern-web-guidance` is an exact devDependency (`1.0.0`, under the release-age quarantine of
+  `pnpm-workspace.yaml`); the CI (`.github/workflows/ci.yml`) runs
+  `DISABLE_TELEMETRY=1 pnpm exec modern-web-guidance legacy-scan src --json` as an advisory step (`continue-on-error`),
+  the same line works locally. `.claude/settings.json` turns the tool's telemetry off and allows only
+  `npx -y modern-web-guidance@latest *` (the skill's `search`/`retrieve`).

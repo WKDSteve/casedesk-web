@@ -133,6 +133,11 @@ pnpm e2e                            # Playwright with the system's Chrome: every
 node build/bundle.mjs --report      # the bundled modules and the vim.* names they use
 ```
 
+The CI (`.github/workflows/ci.yml`) runs these on every push to `main`: casedesk.nvim and lib.nvim checked out at the
+commits of `engine.lock`, `--check` before the build, the build must leave the tree unchanged, then the tests in Node
+and in Chrome, and an advisory `modern-web-guidance legacy-scan src`. Without nvim on the runner the comparison with
+Neovim is skipped.
+
 The bundle is made by casedesk.nvim's own `scripts/web/bundle.mjs`, read from the pinned commit (`git show`), plus the
 three view modules and the door. The `vim` the core sees in the browser is the core's own shim, see
 [docs/SHIM.md](docs/SHIM.md). The browser tests use the invented logs of casedesk.nvim's tests (at the pinned commit)

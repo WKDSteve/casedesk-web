@@ -21,6 +21,7 @@
     "wasmoon": "1.16.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "modern-web-guidance": "1.0.0"
   }
 }
