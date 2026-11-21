@@ -13,6 +13,9 @@
   "engines": {
     "node": ">=22"
   },
+  "browserslist": [
+    "baseline widely available"
+  ],
   "dependencies": {
     "appkit-web": "github:WKDSteve/appkit#v0.64.0&path:web-kit",
     "wasmoon": "1.16.0"
