@@ -19,7 +19,11 @@ casedesk.nvim running in wasmoon (Lua 5.4 in WebAssembly). See [README.md](READM
 - Supply chain: `pnpm-workspace.yaml` holds the rules (release age, no install scripts); do not loosen them.
 
 ## Web platform
-- Browser Support: Baseline Widely available (`.mwgrc`, `browserslist`). Newer features only behind feature detection with a fallback; polyfills only via dynamic `import()`.
+- Browser Support: Baseline Widely available (`.mwgrc`, `browserslist`). Newer features only behind feature detection with a fallback; polyfills where browsers still in use need them (rather one too many), run only after the check: dynamic `import()`, or bundled in a `file://` page (rules-vault `BASE-02`).
 - Before writing or changing HTML, CSS or client-side JS, use the `modern-web-guidance` skill (`search` → `retrieve` → verify). Not for Rust, backend, CI or build config.
 - For open-ended modernisation: `npx -y modern-web-guidance@latest legacy-scan <ui-dir> --json`, check each finding against `keepWhen`/`dropWhen`.
 - Rules: rules-vault ruleset `web` (plus the app rules `WEB-*` in ruleset `native`).
+- This page runs as one `file://` file with `default-src 'none'`: it loads nothing at run time, so a polyfill is
+  bundled into the page and called only when the feature check fails (rules-vault `BASE-02`, decided 2026-11-21).
+- `.claude/settings.json` turns the tool's telemetry off and allows only `npx -y modern-web-guidance@latest *`. There
+  is no CI yet; run `npx -y modern-web-guidance@latest legacy-scan src --json` locally.
