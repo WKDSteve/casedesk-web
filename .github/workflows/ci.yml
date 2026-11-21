@@ -1,8 +1,13 @@
 # Build and check the pages: the committed pages are the build of the sources, the tests in Node, the pages from disk in
 # Chrome. The Lua sources come from casedesk.nvim and lib.nvim at the commits of engine.lock.
 #
-# Actions are pinned by commit (the tag in the comment). Only `push` and manual runs: no `pull_request` trigger, so no
-# code from a fork runs here (keep it that way should the job move to a self-hosted runner).
+# Runs on the self-hosted Windows runner of the author, like the other apps (docmap-desktop, hub-desktop): the pages are
+# used from disk in Chrome on Windows, and the runner clones the private engine repositories with the git login of the
+# machine, so no token is kept here. Only `push` to main and manual runs: no `pull_request` trigger, so no code of a
+# fork ever runs on that machine (keep it that way). `bash` is the WSL launcher there, so Git Bash is named explicitly,
+# in 8.3 form because the shell string is split at spaces.
+#
+# Actions are pinned by commit (the tag in the comment).
 name: ci
 
 on:
@@ -19,12 +24,11 @@ concurrency:
 
 jobs:
   web:
-    # The runner is an open decision (GitHub-hosted Ubuntu or the self-hosted Windows runner); the steps run on both.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows]
     timeout-minutes: 30
     defaults:
       run:
-        shell: bash
+        shell: C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}
     env:
       CASEDESK_NVIM_DIR: ${{ github.workspace }}/engine/casedesk.nvim
       LIB_NVIM_DIR: ${{ github.workspace }}/engine/lib.nvim
@@ -34,16 +38,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-        with:
-          version: 10.28.0
-
+      # pnpm comes from the runner's PATH (as in the other apps); Node is set to the version the tests expect
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -66,25 +65,19 @@ jobs:
             appendFileSync(process.env.GITHUB_OUTPUT, 'casedesk=' + lock.casedesk_commit + '\nlib=' + lock.lib_commit + '\n');
           "
 
-      # The build reads the pinned commits from the git objects; a checkout of exactly that commit holds them.
-      # ENGINE_READ_TOKEN (contents: read on both repositories) is needed only while they are private.
-      - name: Checkout casedesk.nvim at the pinned commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: WKDSteve/casedesk.nvim
-          ref: ${{ steps.engine.outputs.casedesk }}
-          path: engine/casedesk.nvim
-          token: ${{ secrets.ENGINE_READ_TOKEN || github.token }}
-          persist-credentials: false
-
-      - name: Checkout lib.nvim at the pinned commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: WKDSteve/lib.nvim
-          ref: ${{ steps.engine.outputs.lib }}
-          path: engine/lib.nvim
-          token: ${{ secrets.ENGINE_READ_TOKEN || github.token }}
-          persist-credentials: false
+      # The build reads the pinned commits from the git objects (git cat-file), so a full clone is enough; the clone
+      # uses the git login of the runner's machine (both repositories are private). A pin GitHub does not know fails here.
+      - name: Fetch the engine sources at the pinned commits
+        env:
+          CASEDESK_COMMIT: ${{ steps.engine.outputs.casedesk }}
+          LIB_COMMIT: ${{ steps.engine.outputs.lib }}
+        run: |
+          rm -rf engine
+          mkdir engine
+          git clone --quiet https://github.com/WKDSteve/casedesk.nvim engine/casedesk.nvim
+          git clone --quiet https://github.com/WKDSteve/lib.nvim engine/lib.nvim
+          git -C engine/casedesk.nvim cat-file -e "${CASEDESK_COMMIT}^{commit}"
+          git -C engine/lib.nvim cat-file -e "${LIB_COMMIT}^{commit}"
 
       # Before the build overwrites them: the committed pages and sums are the build of the sources
       - name: Committed pages match the build

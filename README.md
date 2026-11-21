@@ -133,7 +133,8 @@ pnpm e2e                            # Playwright with the system's Chrome: every
 node build/bundle.mjs --report      # the bundled modules and the vim.* names they use
 ```
 
-The CI (`.github/workflows/ci.yml`) runs these on every push to `main`: casedesk.nvim and lib.nvim checked out at the
+The CI (`.github/workflows/ci.yml`) runs these on every push to `main`, on the self-hosted Windows runner of the author
+(the run waits for its approval there): casedesk.nvim and lib.nvim cloned with the machine's git login and checked at the
 commits of `engine.lock`, `--check` before the build, the build must leave the tree unchanged, then the tests in Node
 and in Chrome, and an advisory `modern-web-guidance legacy-scan src`. Without nvim on the runner the comparison with
 Neovim is skipped.
