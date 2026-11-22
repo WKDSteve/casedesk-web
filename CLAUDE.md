@@ -31,3 +31,4 @@ casedesk.nvim running in wasmoon (Lua 5.4 in WebAssembly). See [README.md](READM
   `DISABLE_TELEMETRY=1 pnpm exec modern-web-guidance legacy-scan src --json` as an advisory step (`continue-on-error`),
   the same line works locally. `.claude/settings.json` turns the tool's telemetry off and allows only
   `npx -y modern-web-guidance@latest *` (the skill's `search`/`retrieve`).
+- Git: in a cloud session (`CLAUDE_CODE_REMOTE` is set) never push to `main`, only to your own `claude/…` branch; a local session lands it by rebase and the device key re-signs it (`GIT-09`). "Push to main" (`GIT-01`) applies locally only.
