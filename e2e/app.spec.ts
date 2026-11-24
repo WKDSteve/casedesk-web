@@ -177,7 +177,12 @@ test('a case folder, its logs, the reading copy, the side bar and the keys of Ne
   await page.locator('#filter-field').selectOption('nope');
   await page.locator('#filter-raw').fill('x');
   await page.locator('#filter-raw').press('Enter');
-  await expect(page.locator('#message')).toContainText('bad_request: filter 1: no field nope');
+  // the refusal is said at the field of the dialog, which stays; dropping what was typed asks first
+  await expect(page.locator('#filter-raw-error')).toContainText('bad_request: filter 1: no field nope');
+  await expect(page.locator('#filter-raw')).toHaveAttribute('aria-invalid', 'true');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Verwerfen' }).click();
+  await expect(page.locator('#dialog')).not.toBeVisible();
   await keys(page, 'g', 'f');
   await page.locator('#filter-raw').fill('session');
   await page.locator('#filter-raw').press('Enter');

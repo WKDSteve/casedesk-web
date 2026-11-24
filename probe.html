@@ -25,8 +25,8 @@
 <body>
 <h1>casedesk-web probe</h1>
 <p class="note">Checks whether casedesk-web can run on this machine as a local file
-(<code>file://</code>), without a server. Use an <strong>empty test folder</strong>, never a real case folder.
-The page makes no network request (the CSP forbids it). Build: <code>5a96b7e77c0a</code>.</p>
+(<code translate="no">file://</code>), without a server. Use an <strong>empty test folder</strong>, never a real case folder.
+The page makes no network request (the CSP forbids it). Build: <code translate="no">818b4304e96f</code>.</p>
 
 <button id="pick" type="button">1. Pick an empty test folder</button>
 <button id="regrant" type="button">2. Ask again for the stored folder</button>
@@ -34,10 +34,10 @@ The page makes no network request (the CSP forbids it). Build: <code>5a96b7e77c0
 
 <table><tbody id="rows"></tbody></table>
 
-<p class="note">The page cannot read the policies of this browser. Open <code>chrome://policy</code> by hand, filter
-for <code>FileSystem</code>, <code>File</code> and <code>URL</code>, and add what is set to the result below
-(for example <code>DefaultFileSystemWriteGuardSetting</code>, <code>FileSystemWriteBlockedForUrls</code>,
-<code>URLBlocklist</code> with <code>file://*</code>, <code>AllowFileSelectionDialogs</code>).</p>
+<p class="note">The page cannot read the policies of this browser. Open <code translate="no">chrome://policy</code> by hand, filter
+for <code translate="no">FileSystem</code>, <code translate="no">File</code> and <code translate="no">URL</code>, and add what is set to the result below
+(for example <code translate="no">DefaultFileSystemWriteGuardSetting</code>, <code translate="no">FileSystemWriteBlockedForUrls</code>,
+<code translate="no">URLBlocklist</code> with <code translate="no">file://*</code>, <code translate="no">AllowFileSelectionDialogs</code>).</p>
 
 <h2>Result (paste into the task notes)</h2>
 <pre id="out"></pre>
@@ -4416,7 +4416,7 @@ ZxFXG1VL
 <script>
 "use strict";
 const T0 = performance.now();
-const BUILD = "5a96b7e77c0a";
+const BUILD = "818b4304e96f";
 // The smallest useful module: (func (export "add") (param i32 i32) (result i32) local.get 0 local.get 1 i32.add).
 const WASM = new Uint8Array([
   0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x60, 0x02, 0x7f, 0x7f, 0x01,

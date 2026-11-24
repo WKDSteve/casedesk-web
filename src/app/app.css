@@ -101,7 +101,7 @@ button {
 
 .menu-item {
   display: grid;
-  grid-template-columns: 1.4em 1fr auto;
+  grid-template-columns: 1.4em minmax(0, 1fr) auto;
   width: 100%;
   gap: 4px;
   border: 0;
@@ -121,6 +121,10 @@ button {
   color: var(--dim);
 }
 
+.menu-item .label {
+  overflow-wrap: anywhere;
+}
+
 .menu-item .key {
   color: var(--dim);
   font-family: var(--mono);
@@ -137,6 +141,7 @@ button {
   padding: 2px 12px 2px 28px;
   color: var(--dim);
   font-size: 0.85em;
+  overflow-wrap: anywhere;
 }
 
 .where {
@@ -163,10 +168,16 @@ button {
   outline: none;
 }
 
+/* The bar is 5 px of line in a gutter of 24 px: that is the target of a pointer. The arrow keys move it too. */
 .splitter {
-  width: 5px;
+  width: 24px;
   cursor: col-resize;
-  background: var(--line);
+  background: linear-gradient(to right, transparent 9.5px, var(--line) 9.5px, var(--line) 14.5px, transparent 14.5px);
+}
+
+.splitter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .sidebar {
@@ -189,6 +200,8 @@ button {
 .picker h1 {
   font-size: 20px;
   margin: 0 0 8px;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 .hint {
@@ -215,6 +228,12 @@ button {
   text-decoration: underline;
   cursor: pointer;
   font-family: var(--mono);
+  /* a target of at least 24 px, a long name breaks instead of widening the page */
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .recent ul {
@@ -235,11 +254,27 @@ table.logs td,
 table.logs th {
   padding: 2px 10px 2px 0;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 table.logs td.size {
   color: var(--dim);
   text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the box of a log to merge: the label around it is the target (24 px) */
+.pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  cursor: pointer;
+}
+
+.pick input {
+  margin: 0;
 }
 
 /* ── the reading copy ── */
@@ -288,6 +323,7 @@ table.logs td.size {
 
 .lnum {
   color: var(--dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .mark {
@@ -378,6 +414,7 @@ table.logs td.size {
 /* ── side bar ── */
 
 .sidebar h2 {
+  text-wrap: balance;
   font-size: 13px;
   margin: 4px 0 8px;
   text-transform: uppercase;
@@ -393,6 +430,8 @@ table.logs td.size {
   font-weight: 600;
   cursor: pointer;
   padding: 2px 0;
+  min-height: 24px;
+  font-variant-numeric: tabular-nums;
 }
 
 .group[data-group='errors'] summary {
@@ -418,7 +457,8 @@ table.logs td.size {
   width: 100%;
   border: 0;
   background: none;
-  padding: 1px 4px;
+  padding: 4px 4px;
+  min-height: 24px;
   text-align: left;
   font-family: var(--mono);
   font-size: 12px;
@@ -453,7 +493,12 @@ table.logs td.size {
 
 .explain {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   margin: 2px 0;
+}
+
+.links {
+  overflow-wrap: anywhere;
 }
 
 .links a {
@@ -479,6 +524,7 @@ table.logs td.size {
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
+  font-variant-numeric: tabular-nums;
 }
 
 .status .facts {
@@ -518,6 +564,9 @@ table.logs td.size {
   font-size: 15px;
   margin: 0;
   flex: 1;
+  min-width: 0;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 .dialog .close {
@@ -525,6 +574,8 @@ table.logs td.size {
   background: none;
   font-size: 20px;
   cursor: pointer;
+  min-width: 24px;
+  min-height: 24px;
 }
 
 .dialog label {
@@ -535,6 +586,8 @@ table.logs td.size {
 .dialog input,
 .dialog select {
   font: inherit;
+  /* a field is at least 16 px: a browser that zooms into a smaller one does not get the chance */
+  font-size: max(16px, 1em);
   color: inherit;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -546,6 +599,34 @@ table.logs td.size {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+.buttons button:disabled {
+  opacity: 0.6;
+}
+
+/* what is wrong with a field is said under it */
+.field-error {
+  margin: -4px 0 8px;
+  color: var(--error);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+.dialog [aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+/* the question before a dialog drops what was typed */
+.discard {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 4px;
+}
+
+.discard p {
+  margin: 0;
 }
 
 .buttons button:not(.primary) {
@@ -569,4 +650,11 @@ table.keys td {
 
 kbd {
   font-family: var(--mono);
+}
+
+/* a very long word of a log, a case or a catalog breaks inside its box */
+.start,
+.picker,
+.known-item {
+  overflow-wrap: anywhere;
 }

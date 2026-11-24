@@ -82,6 +82,12 @@ function engineParts(b) {
 
 const engineLabel = (b) => `casedesk.nvim ${b.engine.casedesk_commit.slice(0, 7)}, lib.nvim ${b.engine.lib_commit.slice(0, 7)}`;
 
+/** The page with `lang` set: the kit's shell says `en`. Refuses a shell that does not say it, so a kit that changes is noticed. */
+export function withLang(html, lang) {
+  if (!html.includes('<html lang="en">')) throw new Error('withLang: the shell has no <html lang="en"> to replace');
+  return html.replace('<html lang="en">', `<html lang="${lang}">`);
+}
+
 /** The reading copy page. */
 export function app(b) {
   const parts = engineParts(b);
@@ -90,7 +96,9 @@ export function app(b) {
   const build = sha([css, script, ...APP_PART_IDS.map((id) => sha(parts[id]))].join('\n')).slice(0, 12);
   const engine = engineLabel(b);
   const js = `const PAGE = ${JSON.stringify({ build, engine })};\n${script}`;
-  const html = assemble({
+  // The text of this page is German; the kit writes lang="en" and has no option for it (a note in the vault asks for one),
+  // so the markup is corrected here: Intl, the translator and the screen reader go by it.
+  const html = withLang(assemble({
     css,
     js,
     partIds: APP_PART_IDS,
@@ -100,7 +108,7 @@ export function app(b) {
     comment:
       `casedesk-web, the reading copy of case logs, build ${build}, ${engine}. Third-party code inside: Lua 5.4 and ` +
       'wasmoon 1.16.0 (MIT); see THIRD-PARTY-NOTICES.md',
-  });
+  }), 'de');
   const problems = verifyShell(html, { partIds: APP_PART_IDS });
   if (problems.length) throw new Error('casedesk: ' + problems.join('; '));
   return html;

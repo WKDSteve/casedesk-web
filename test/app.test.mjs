@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { isLogFile, KeyReader, keyName, knownRefs, linkKind, listLogs, pieces } from '../src/app/util.js';
+import { formatNumber, formatSize, isLogFile, pageLocale, KeyReader, keyName, knownRefs, linkKind, listLogs, pieces } from '../src/app/util.js';
 
 /** Extensions as the door's `logfiles` answers them (the list itself is the core's, checked in engine.test.mjs). */
 const EXT = ['csv', 'json', 'jsonl', 'log', 'ndjson', 'out', 'txt', 'xml'];
@@ -109,4 +109,21 @@ test('catalog task and ticket: the task by its id, the ticket as a link or text'
     { label: 'Ticket', kind: 'url', text: 'https://example.invalid/browse/T-1', href: 'https://example.invalid/browse/T-1' },
   ]);
   assert.deepEqual(knownRefs({ title: 'no refs' }), []);
+});
+
+describe('numbers and sizes', () => {
+  test('are written as the language of the page writes them, not with a fixed point', () => {
+    assert.equal(formatNumber(12345, 'de'), '12.345');
+    assert.equal(formatNumber(12345, 'en'), '12,345');
+    assert.equal(formatSize(1234567, 'de'), '1,2 MB');
+    assert.equal(formatSize(1234567, 'en'), '1.2 MB');
+    assert.equal(formatSize(1536, 'de'), '1,5 kB');
+    assert.equal(formatSize(1023, 'de'), '1.023 B');
+    assert.equal(formatSize(0, 'de'), '0 B');
+  });
+  test('the language is the one of the markup, German without one', () => {
+    assert.equal(pageLocale({ documentElement: { lang: 'en' } }), 'en');
+    assert.equal(pageLocale({ documentElement: { lang: '' } }), 'de');
+    assert.equal(pageLocale(null), 'de');
+  });
 });

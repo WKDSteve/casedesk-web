@@ -84,11 +84,27 @@ export function pieces(label, spans) {
   return out;
 }
 
-/** `1234567` -> `1.2 MB`. */
-export function formatSize(n) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} kB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+/** The language of the page: what its markup says, German (the language of the text) when it says nothing. */
+export function pageLocale(doc = globalThis.document) {
+  return doc?.documentElement?.lang || 'de';
+}
+
+const numberFormats = new Map();
+
+/** A number as people of `locale` write it: `12345` -> `12.345` in German. */
+export function formatNumber(n, locale = 'de', options) {
+  const key = locale + JSON.stringify(options ?? {});
+  let f = numberFormats.get(key);
+  if (!f) numberFormats.set(key, (f = new Intl.NumberFormat(locale, options)));
+  return f.format(n);
+}
+
+/** `1234567` -> `1,2 MB` (German), `1.2 MB` (English). */
+export function formatSize(n, locale = 'de') {
+  const one = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+  if (n < 1024) return `${formatNumber(n, locale)} B`;
+  if (n < 1024 * 1024) return `${formatNumber(n / 1024, locale, one)} kB`;
+  return `${formatNumber(n / 1024 / 1024, locale, one)} MB`;
 }
 
 /**

@@ -106,6 +106,8 @@ function h(tag, attrs = {}, ...children) {
 }
 
 const $ = (id) => document.getElementById(id);
+/** A name, a path, a key or a command inside a sentence: a translator leaves it alone. */
+const nt = (text) => h('span', { translate: 'no' }, text);
 const errText = (e) => (e && e.name ? `${e.name}: ${e.message}` : String(e));
 
 function say(text) {
@@ -113,14 +115,15 @@ function say(text) {
   renderStatus();
 }
 
-/** Run `fn` with the busy marker on; an error becomes the status message. */
-async function busy(fn) {
+/** Run `fn` with the busy marker on; an error becomes the status message, or goes to `onError` when the caller shows it itself. */
+async function busy(fn, onError) {
   st.busy++;
   document.body.dataset.busy = 'true';
   try {
     return await fn();
   } catch (e) {
-    say('Fehler: ' + errText(e));
+    if (onError) onError(e);
+    else say('Fehler: ' + errText(e));
     console.warn(e);
     return undefined;
   } finally {
@@ -149,6 +152,9 @@ async function door(method, params, blobs) {
 }
 
 const list = (x) => (Array.isArray(x) ? x : []);
+/** A count or a size as the language of the page writes it. */
+const num = (n) => formatNumber(n, pageLocale());
+const size = (n) => formatSize(n, pageLocale());
 
 // ── layout ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -163,13 +169,13 @@ function layout() {
       menu('filter', 'Filter', filterMenu),
       menu('catalog', 'Katalog', catalogMenu),
       menu('settings', 'Einstellungen', settingsMenu),
-      h('span', { class: 'where', id: 'where' }),
+      h('span', { class: 'where', id: 'where', translate: 'no' }),
     ),
     h(
       'main',
       { class: 'workspace', id: 'workspace' },
       h('section', { id: 'log', class: 'log', tabindex: '0', role: 'tree', 'aria-label': 'Lesekopie' }),
-      h('div', { id: 'splitter', class: 'splitter', role: 'separator', 'aria-orientation': 'vertical' }),
+      h('div', { id: 'splitter', class: 'splitter', role: 'separator', 'aria-orientation': 'vertical', 'aria-label': 'Breite der Seitenleiste', tabindex: '0' }),
       h('aside', { id: 'sidebar', class: 'sidebar', 'aria-label': 'Treffer' }),
     ),
     h('footer', { id: 'status', class: 'status' }),
@@ -181,25 +187,54 @@ function layout() {
   document.addEventListener('click', (ev) => {
     if (!ev.target.closest('.menu')) closeMenus();
   });
+  // a dialog with input asks before it drops what was typed, and closes at once when there is nothing: Esc and the back
+  // gesture come here (`closedby="none"` is set for those, a browser without it sends `cancel`)
+  const d = $('dialog');
+  d.addEventListener('cancel', (ev) => {
+    if (dialogDirty) {
+      ev.preventDefault();
+      requestClose();
+    }
+  });
+  d.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && dialogDirty) {
+      ev.preventDefault();
+      requestClose();
+    }
+  });
+  d.addEventListener('close', () => {
+    dialogDirty = null;
+  });
 }
 
 function applySidebar() {
   const side = $('sidebar');
   side.hidden = !st.settings.sidebar;
   $('splitter').hidden = !st.settings.sidebar;
-  side.style.width = st.settings.sidebarWidth + 'px';
+  setSidebarWidth(st.settings.sidebarWidth);
+}
+
+const SIDE_MIN = 200;
+
+/** The side bar's width, kept inside the window; the separator says it to a screen reader. */
+function setSidebarWidth(w) {
+  const max = Math.max(SIDE_MIN, window.innerWidth - 300);
+  const width = Math.round(Math.max(SIDE_MIN, Math.min(max, w)));
+  st.settings.sidebarWidth = width;
+  $('sidebar').style.width = width + 'px';
+  const bar = $('splitter');
+  bar.setAttribute('aria-valuemin', String(SIDE_MIN));
+  bar.setAttribute('aria-valuemax', String(max));
+  bar.setAttribute('aria-valuenow', String(width));
 }
 
 function splitter() {
   const bar = $('splitter');
+  setSidebarWidth(st.settings.sidebarWidth);
   bar.addEventListener('pointerdown', (ev) => {
     ev.preventDefault();
     bar.setPointerCapture(ev.pointerId);
-    const move = (e) => {
-      const w = Math.max(200, Math.min(window.innerWidth - 300, window.innerWidth - e.clientX));
-      st.settings.sidebarWidth = Math.round(w);
-      $('sidebar').style.width = w + 'px';
-    };
+    const move = (e) => setSidebarWidth(window.innerWidth - e.clientX - 12); // 12: half the gutter, the pointer holds its middle
     const up = () => {
       bar.removeEventListener('pointermove', move);
       bar.removeEventListener('pointerup', up);
@@ -207,6 +242,15 @@ function splitter() {
     };
     bar.addEventListener('pointermove', move);
     bar.addEventListener('pointerup', up);
+  });
+  // the way without dragging: the arrows move the bar by a step, Home and End to the ends
+  bar.addEventListener('keydown', (ev) => {
+    const w = st.settings.sidebarWidth;
+    const target = { ArrowLeft: w + 20, ArrowRight: w - 20, Home: SIDE_MIN, End: Infinity }[ev.key];
+    if (target === undefined) return;
+    ev.preventDefault();
+    setSidebarWidth(target);
+    saveSettings();
   });
 }
 
@@ -271,7 +315,7 @@ function item(label, run, opts = {}) {
       },
     },
     h('span', { class: 'mark' }, opts.check ? '✓' : ''),
-    h('span', { class: 'label' }, label),
+    h('span', { class: 'label', translate: opts.names ? 'no' : undefined }, label),
     h('span', { class: 'key' }, opts.key ?? ''),
   );
 }
@@ -284,7 +328,7 @@ function fileMenu() {
   const recent = st.recentList ?? [];
   if (recent.length) {
     out.push(sep(), note('Zuletzt benutzt'));
-    for (const r of recent) out.push(item(r.name, () => openRecent(r)));
+    for (const r of recent) out.push(item(r.name, () => openRecent(r), { names: true }));
   }
   out.push(
     sep(),
@@ -353,9 +397,9 @@ function catalogMenu() {
     out.push(note(`Katalog: ${c.name}`));
     if (c.permission !== 'granted') out.push(note('Zugriff wird beim nächsten Öffnen eines Logs erfragt'));
     if (info) {
-      out.push(note(`${info.size} Einträge, ${info.count} Treffer in diesem Log`));
+      out.push(note(`${num(info.size)} Einträge, ${num(info.count)} Treffer in diesem Log`));
       if (list(info.problems).length) {
-        out.push(item(`${info.problems.length} Probleme im Katalog …`, () => showProblems(info.problems)));
+        out.push(item(`${num(info.problems.length)} Probleme im Katalog …`, () => showProblems(info.problems)));
       }
     }
   }
@@ -384,7 +428,7 @@ function startLine() {
 }
 
 function showStartLine() {
-  const line = h('input', { id: 'start-line', type: 'text', readonly: true, size: '90', value: startLine() });
+  const line = h('input', { id: 'start-line', type: 'text', readonly: true, size: '90', value: startLine(), spellcheck: 'false', autocomplete: 'off', translate: 'no' });
   const copy = h('button', { type: 'button', class: 'primary', onclick: async () => {
     try {
       await navigator.clipboard.writeText(line.value);
@@ -492,8 +536,8 @@ function showLogPicker() {
     return h(
       'tr',
       {},
-      h('td', {}, box),
-      h('td', {}, h('button', { type: 'button', class: 'link', onclick: () => openLogs([l]) }, l.path)),
+      h('td', {}, h('label', { class: 'pick' }, box)),
+      h('td', {}, h('button', { type: 'button', class: 'link', translate: 'no', onclick: () => openLogs([l]) }, l.path)),
       h('td', { class: 'size', dataset: { index: String(i) } }, ''),
     );
   });
@@ -502,10 +546,17 @@ function showLogPicker() {
     {
       type: 'button',
       id: 'merge',
-      onclick: () => {
+      onclick: async () => {
         const chosen = checks.filter((c) => c.checked).map((c) => f.logs[Number(c.dataset.index)]);
         if (chosen.length < 2) return say('Zum Zusammenlegen mindestens zwei Logs ankreuzen.');
-        openLogs(chosen);
+        // one click starts one reading: a second click while the logs are read starts nothing
+        if (mergeButton.disabled) return;
+        mergeButton.disabled = true;
+        try {
+          await openLogs(chosen);
+        } finally {
+          mergeButton.disabled = false;
+        }
       },
     },
     'Angekreuzte zusammenlegen',
@@ -514,13 +565,13 @@ function showLogPicker() {
     h(
       'div',
       { class: 'picker' },
-      h('h1', {}, `Fall ${f.caseName}`),
+      h('h1', {}, 'Fall ', nt(f.caseName)),
       h(
         'p',
         { class: 'hint' },
         f.assets
-          ? `Logs unter ${ASSETS}/ (${f.logs.length}). Ein Klick öffnet die Lesekopie; mehrere ankreuzen legt sie nach Zeit zusammen.`
-          : `Kein Ordner ${ASSETS}/ in ${f.name}: Logs im gewählten Ordner selbst (${f.logs.length}).`,
+          ? ['Logs unter ', nt(`${ASSETS}/`), ` (${num(f.logs.length)}). Ein Klick öffnet die Lesekopie; mehrere ankreuzen legt sie nach Zeit zusammen.`]
+          : ['Kein Ordner ', nt(`${ASSETS}/`), ' in ', nt(f.name), `: Logs im gewählten Ordner selbst (${num(f.logs.length)}).`],
       ),
       f.logs.length
         ? h('table', { class: 'logs', id: 'logs' }, h('thead', {}, h('tr', {}, h('th', {}), h('th', {}, 'Log'), h('th', {}, 'Größe'))), h('tbody', {}, rows))
@@ -534,7 +585,7 @@ function showLogPicker() {
     try {
       const file = await l.handle.getFile();
       const cell = log.querySelector(`td.size[data-index="${i}"]`);
-      if (cell) cell.textContent = formatSize(file.size);
+      if (cell) cell.textContent = size(file.size);
     } catch {
       // a file that went away shows no size; opening it says why
     }
@@ -573,7 +624,7 @@ async function openLogs(chosen) {
     const files = [];
     for (const l of chosen) {
       const file = await l.handle.getFile();
-      if (file.size > MAX_LOG_BYTES) throw new Error(`${l.path}: größer als ${formatSize(MAX_LOG_BYTES)}`);
+      if (file.size > MAX_LOG_BYTES) throw new Error(`${l.path}: größer als ${size(MAX_LOG_BYTES)}`);
       files.push(new Uint8Array(await file.arrayBuffer()));
     }
     const params = { logs: chosen.map((l, i) => ({ name: l.path.split('/').at(-1), blob: i + 1 })) };
@@ -590,7 +641,7 @@ async function openLogs(chosen) {
     st.filters = [];
     await refreshView({ keep: false });
     renderWhere();
-    say(`${chosen.map((l) => l.path).join(' + ')}: ${summary.entries} Einträge in ${Math.round(performance.now() - t0)} ms`);
+    say(`${chosen.map((l) => l.path).join(' + ')}: ${num(summary.entries)} Einträge in ${num(Math.round(performance.now() - t0))} ms`);
     if (summary.catalog_error) say(`Katalog ${st.catalog?.name ?? ''} ist kein Text (${summary.catalog_error}): das Log wird ohne Katalog gezeigt`);
     $('log').focus();
   });
@@ -774,10 +825,10 @@ function renderStart() {
             'div',
             { class: 'recent' },
             h('h2', {}, 'Zuletzt benutzt'),
-            h('ul', {}, recent.map((r) => h('li', {}, h('button', { type: 'button', class: 'link', onclick: () => openRecent(r) }, r.name)))),
+            h('ul', {}, recent.map((r) => h('li', {}, h('button', { type: 'button', class: 'link', translate: 'no', onclick: () => openRecent(r) }, r.name)))),
           )
         : null,
-      h('p', { class: 'hint small' }, `Build ${PAGE.build} · ${PAGE.engine}`),
+      h('p', { class: 'hint small', translate: 'no' }, `Build ${PAGE.build} · ${PAGE.engine}`),
     ),
   );
   renderSidebar();
@@ -845,12 +896,12 @@ function renderLog() {
   const head = h(
     'div',
     { class: 'loghead' },
-    h('span', { class: 'format' }, s.known || s.merged ? s.format.label : 'unknown format'),
+    h('span', { class: 'format', translate: 'no' }, s.known || s.merged ? s.format.label : 'unknown format'),
     s.confidence && !s.merged ? h('span', { class: 'dim' }, ` (${s.confidence})`) : null,
-    h('span', { class: 'dim' }, ` · ${s.lines} Zeilen · ${s.entries} ${s.report ? 'Abschnitte' : 'Einträge'}`),
-    s.header ? h('span', { class: 'dim' }, ` · ${s.header}`) : null,
+    h('span', { class: 'dim' }, ` · ${num(s.lines)} Zeilen · ${num(s.entries)} ${s.report ? 'Abschnitte' : 'Einträge'}`),
+    s.header ? h('span', { class: 'dim', translate: 'no' }, ` · ${s.header}`) : null,
   );
-  const rows = h('div', { class: 'rows', id: 'rows' });
+  const rows = h('div', { class: 'rows', id: 'rows', translate: 'no' });
   for (const n of st.flat) {
     n.el = rowEl(n, width);
     rows.append(n.el);
@@ -974,8 +1025,10 @@ function renderSidebar() {
       continue;
     }
     const count = key === 'known' ? entries.reduce((n, g) => n + list(g.rows).length, 0) : entries.length;
-    const details = h('details', { class: 'group', dataset: { group: key }, open: count > 0 && key !== 'repeats' ? true : undefined }, h('summary', {}, `${title} (${count})`));
-    if (key === 'known') {
+    const details = h('details', { class: 'group', dataset: { group: key }, open: count > 0 && key !== 'repeats' ? true : undefined }, h('summary', {}, `${title} (${num(count)})`));
+    if (count === 0) {
+      details.append(h('p', { class: 'hint' }, 'Keine Treffer.'));
+    } else if (key === 'known') {
       for (const g of entries) details.append(knownBlock(g));
     } else {
       const ul = h('ul', {});
@@ -988,7 +1041,7 @@ function renderSidebar() {
 }
 
 function jumpButton(id, label) {
-  return h('button', { type: 'button', class: 'jump', title: label, onclick: () => jumpTo(id) }, label);
+  return h('button', { type: 'button', class: 'jump', title: label, translate: 'no', onclick: () => jumpTo(id) }, label);
 }
 
 function knownBlock(g) {
@@ -1026,10 +1079,10 @@ function renderStatus() {
   const s = st.status;
   if (st.open && s) {
     parts.push(st.open.summary.format.label);
-    parts.push(`${s.shown}/${s.total} Einträge`);
+    parts.push(`${num(s.shown)}/${num(s.total)} Einträge`);
     if (s.filter) parts.push(`Filter: ${s.filter}`);
     const t = TIME_MODES.find(([m]) => m === s.time)?.[1] ?? s.time;
-    parts.push(`Zeit: ${t}${s.unzoned ? ` (${s.unzoned} ohne Zone, wie geschrieben)` : ''}`);
+    parts.push(`Zeit: ${t}${s.unzoned ? ` (${num(s.unzoned)} ohne Zone, wie geschrieben)` : ''}`);
     parts.push(`Seitenquelltext: ${st.settings.mode}`);
     if (!st.settings.repeats) parts.push('ungefaltet');
   }
@@ -1078,15 +1131,17 @@ function forget(n) {
   for (const c of n.children ?? []) forget(c);
 }
 
-async function addFilter(clause) {
+/** Add a clause and show the view; true when the core took it. A refusal goes to `onError`, else to the status line. */
+async function addFilter(clause, onError) {
   const before = st.filters;
   st.filters = [...before, clause];
   const shown = await busy(async () => {
     await refreshView();
     return true;
-  });
-  // a filter the core refuses would make every later view fail: it goes again (the status line says why)
+  }, onError);
+  // a filter the core refuses would make every later view fail: it goes again (the message says why)
   if (!shown) st.filters = before;
+  return Boolean(shown);
 }
 
 async function popFilter() {
@@ -1160,7 +1215,7 @@ async function showOriginal() {
   if (!r) return;
   const width = String(r.to).length;
   const text = list(r.lines).map((l, k) => `${String(r.from + k).padStart(width)}  ${l}`).join('\n');
-  dialog(`${r.name}, Zeilen ${r.from}–${r.to}${r.to - r.from + 1 < to - from + 1 ? ` (von ${to - from + 1})` : ''}`, h('pre', { class: 'original' }, text));
+  dialog([nt(r.name), `, Zeilen ${num(r.from)}–${num(r.to)}${r.to - r.from + 1 < to - from + 1 ? ` (von ${num(to - from + 1)})` : ''}`], h('pre', { class: 'original' }, text));
 }
 
 function showHelp() {
@@ -1197,32 +1252,64 @@ function showHelp() {
   };
   dialog(
     'Tasten (wie in Neovim)',
-    h('table', { class: 'keys' }, Object.entries(KEYS).map(([a, seqs]) => h('tr', {}, h('td', {}, h('kbd', {}, seqs.join(' '))), h('td', {}, names[a] ?? a)))),
+    h('table', { class: 'keys' }, Object.entries(KEYS).map(([a, seqs]) => h('tr', {}, h('td', {}, h('kbd', { translate: 'no' }, seqs.join(' '))), h('td', {}, names[a] ?? a)))),
   );
+}
+
+/** Say at a field what is wrong: the text under its label, `aria-invalid`, the field described by it. */
+function fieldError(input, text) {
+  clearFieldError(input);
+  const id = `${input.id}-error`;
+  input.setAttribute('aria-invalid', 'true');
+  input.setAttribute('aria-describedby', id);
+  input.closest('label').after(h('p', { class: 'field-error', id, role: 'alert' }, text));
+}
+
+function clearFieldError(input) {
+  input.removeAttribute('aria-invalid');
+  input.removeAttribute('aria-describedby');
+  document.getElementById(`${input.id}-error`)?.remove();
+}
+
+/** Fields that are wrong: each says so, the focus goes to the first. */
+function fieldErrors(problems) {
+  for (const [input, text] of problems) fieldError(input, text);
+  problems[0]?.[0].focus();
 }
 
 function showFilterDialog() {
   if (!st.open) return;
   const field = h('select', { id: 'filter-field' }, FILTER_FIELDS.map(([v, l]) => h('option', { value: v }, l)));
-  const input = h('input', { id: 'filter-raw', type: 'text', size: '40', autocomplete: 'off', spellcheck: 'false' });
+  const input = h('input', { id: 'filter-raw', type: 'text', size: '40', autocomplete: 'off', spellcheck: 'false', translate: 'no' });
+  const submit = h('button', { type: 'submit', class: 'primary' }, 'Hinzufügen');
   const form = h(
     'form',
     {
       method: 'dialog',
+      novalidate: true,
       class: 'filter-form',
-      onsubmit: (ev) => {
+      onsubmit: async (ev) => {
         ev.preventDefault();
+        clearFieldError(input);
         const raw = input.value.trim();
-        $('dialog').close();
-        if (raw && raw !== '!') addFilter({ field: field.value, raw });
+        if (!raw) return fieldErrors([[input, 'Bitte einen Wert eintragen.']]);
+        if (raw === '!') return fieldErrors([[input, 'Nach dem ! fehlt der Text.']]);
+        // the dialog stays until the core took the filter: a refusal is said at the field, the button waits meanwhile
+        submit.disabled = true;
+        const shown = await addFilter({ field: field.value, raw }, (e) => fieldErrors([[input, errText(e)]]));
+        submit.disabled = false;
+        if (shown) {
+          dialogDirty = null;
+          $('dialog').close();
+        }
       },
     },
     h('label', {}, 'Feld ', field),
     h('label', {}, 'Wert ', input),
     h('p', { class: 'hint' }, 'Teilstring (Groß/klein egal); /…/ = Lua-Muster; ! vorne schließt aus.'),
-    h('div', { class: 'buttons' }, h('button', { type: 'submit', class: 'primary' }, 'Hinzufügen'), h('button', { type: 'button', onclick: () => $('dialog').close() }, 'Abbrechen')),
+    h('div', { class: 'buttons' }, submit, h('button', { type: 'button', onclick: requestClose }, 'Abbrechen')),
   );
-  dialog('Filter hinzufügen', form);
+  dialog('Filter hinzufügen', form, () => input.value.trim() !== '');
   input.focus();
 }
 
@@ -1230,33 +1317,78 @@ function showSettingsDialog() {
   const s = st.settings;
   const delta = h('input', { id: 'set-delta', type: 'number', min: '-1', step: '50', value: String(s.delta_ms) });
   const gap = h('input', { id: 'set-gap', type: 'number', min: '0', step: '1', value: String(s.gap_minutes) });
+  const submit = h('button', { type: 'submit', class: 'primary' }, 'Übernehmen');
   const form = h(
     'form',
     {
       method: 'dialog',
+      novalidate: true,
       class: 'settings-form',
       onsubmit: async (ev) => {
         ev.preventDefault();
+        clearFieldError(delta);
+        clearFieldError(gap);
         const d = Number(delta.value);
         const g = Number(gap.value);
+        const problems = [];
+        if (delta.value.trim() === '' || !Number.isFinite(d)) problems.push([delta, 'Eine Zahl in Millisekunden eintragen (−1 = nie).']);
+        if (gap.value.trim() === '' || !Number.isFinite(g) || g < 0) problems.push([gap, 'Eine Zahl ab 0 in Minuten eintragen (0 = nie).']);
+        if (problems.length) return fieldErrors(problems);
+        submit.disabled = true;
+        dialogDirty = null;
         $('dialog').close();
-        if (Number.isFinite(d)) s.delta_ms = Math.round(d);
-        if (Number.isFinite(g) && g >= 0) s.gap_minutes = g;
+        s.delta_ms = Math.round(d);
+        s.gap_minutes = g;
         saveSettings();
         await busy(() => refreshView());
       },
     },
     h('label', {}, 'Abstand am Zeilenende ab (ms, −1 = nie) ', delta),
     h('label', {}, 'Lücke als eigene Zeile ab (Minuten, 0 = nie) ', gap),
-    h('div', { class: 'buttons' }, h('button', { type: 'submit', class: 'primary' }, 'Übernehmen'), h('button', { type: 'button', onclick: () => $('dialog').close() }, 'Abbrechen')),
+    h('div', { class: 'buttons' }, submit, h('button', { type: 'button', onclick: requestClose }, 'Abbrechen')),
   );
-  dialog('Abstände und Lücken', form);
+  dialog('Abstände und Lücken', form, () => delta.value !== String(s.delta_ms) || gap.value !== String(s.gap_minutes));
 }
 
-function dialog(title, body) {
+/** Set while the open dialog holds input that would be lost: a function that says whether it differs from what was there. */
+let dialogDirty = null;
+
+/** Close the dialog; one with unsaved input asks first (a notice in the dialog, the focus on "Weiter bearbeiten"). */
+function requestClose() {
   const d = $('dialog');
+  if (!dialogDirty?.()) return d.close();
+  const open = d.querySelector('.discard');
+  if (open) return open.querySelector('button:last-child').focus();
+  const keep = h(
+    'button',
+    {
+      type: 'button',
+      onclick: () => {
+        notice.remove();
+        d.querySelector('input:not([readonly]), select')?.focus();
+      },
+    },
+    'Weiter bearbeiten',
+  );
+  const notice = h(
+    'div',
+    { class: 'discard', role: 'alert' },
+    h('p', {}, 'Die Eingaben gehen verloren, wenn der Dialog schließt.'),
+    h('div', { class: 'buttons' }, h('button', { type: 'button', class: 'primary', onclick: () => ((dialogDirty = null), d.close()) }, 'Verwerfen'), keep),
+  );
+  d.append(notice);
+  keep.focus();
+}
+
+/** Show a dialog. `title` is text or nodes; `dirty` (a dialog with input) says whether the input would be lost. */
+function dialog(title, body, dirty) {
+  const d = $('dialog');
+  dialogDirty = dirty ?? null;
+  // closedby is new: a browser without it sends `cancel` for Esc, which the handler of layout() turns into the same question
+  if (dirty) d.setAttribute('closedby', 'none');
+  else d.removeAttribute('closedby');
   d.replaceChildren(
-    h('div', { class: 'dialog-head' }, h('h2', {}, title), h('button', { type: 'button', class: 'close', 'aria-label': 'Schließen', onclick: () => d.close() }, '×')),
+    h('div', { class: 'dialog-head' }, h('h2', {}, title), h('button', { type: 'button', class: 'close', 'aria-label': 'Schließen', onclick: requestClose }, '×')),
     body,
   );
   d.showModal();
@@ -1269,7 +1401,7 @@ let keyTimer = null;
 
 function onKey(ev) {
   if ($('dialog').open) return;
-  if (ev.target.closest && ev.target.closest('input, select, textarea')) return;
+  if (ev.target.closest && ev.target.closest('input, select, textarea, #splitter')) return;
   if (ev.key === 'Escape') {
     closeMenus();
     keys.reset();
