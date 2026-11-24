@@ -127,6 +127,7 @@ objects of the pinned commits, not from the working tree).
 pnpm install
 pnpm build                          # casedesk.html, probe.html, engine-check.html, SHA256SUMS
 node build/pack.mjs --check         # the files in the repository are the build of the sources
+node build/check-size.mjs           # each page inside its size budget (--measure prints the sizes)
 pnpm test                           # Node: the door in wasmoon, the same answers as in Neovim, the pages
 CASEDESK_WEB_COMPARE=1 pnpm test    # the same, a missing nvim is an error instead of a skipped test
 pnpm e2e                            # Playwright with the system's Chrome: every page from disk

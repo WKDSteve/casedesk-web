@@ -14,7 +14,8 @@ casedesk.nvim running in wasmoon (Lua 5.4 in WebAssembly). See [README.md](READM
   not in the page.
 - Never put a log, a line of it, a case file or the catalog's text into browser storage (IndexedDB holds handles,
   `localStorage` the view settings).
-- Checks (see README, *Building and testing*): `pnpm build`, `node build/pack.mjs --check`, `pnpm test`, `pnpm e2e`;
+- Checks (see README, *Building and testing*): `pnpm build`, `node build/pack.mjs --check`, `node build/check-size.mjs` (the size budget of each page; a change that
+  outgrows it raises `BUDGET` on purpose and says why in its commit), `pnpm test`, `pnpm e2e`;
   the CI (`.github/workflows/ci.yml`, on a push to `main`) runs all of them with the checkouts at `engine.lock`.
   The build needs the checkouts of casedesk.nvim and lib.nvim (`CASEDESK_NVIM_DIR`, `LIB_NVIM_DIR` or `REPOS_DIR`).
 - Supply chain: `pnpm-workspace.yaml` holds the rules (release age, no install scripts); do not loosen them.

@@ -92,6 +92,10 @@ jobs:
           git status --porcelain --untracked-files=all -- . ':!engine'
           test -z "$(git status --porcelain --untracked-files=all -- . ':!engine')"
 
+      # The size of each page against its budget (build/check-size.mjs)
+      - name: Size budget
+        run: node build/check-size.mjs
+
       - name: Test
         run: pnpm test
 
