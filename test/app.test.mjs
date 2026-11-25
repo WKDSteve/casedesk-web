@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { formatNumber, formatSize, isLogFile, pageLocale, KeyReader, keyName, knownRefs, linkKind, listLogs, pieces } from '../src/app/util.js';
+import { fileKind, formatNumber, formatSize, isLogFile, listTree, pageLocale, KeyReader, keyName, knownRefs, linkKind, listLogs, pieces } from '../src/app/util.js';
 
 /** Extensions as the door's `logfiles` answers them (the list itself is the core's, checked in engine.test.mjs). */
 const EXT = ['csv', 'json', 'jsonl', 'log', 'ndjson', 'out', 'txt', 'xml'];
@@ -125,5 +125,38 @@ describe('numbers and sizes', () => {
     assert.equal(pageLocale({ documentElement: { lang: 'en' } }), 'en');
     assert.equal(pageLocale({ documentElement: { lang: '' } }), 'de');
     assert.equal(pageLocale(null), 'de');
+  });
+});
+
+describe('the asset view', () => {
+  test('fileKind: what is shown, what is only a copy', () => {
+    assert.deepEqual(fileKind('screen.PNG'), { kind: 'image', mime: 'image/png', ext: 'png' });
+    assert.equal(fileKind('01_architecture.svg').mime, 'image/svg+xml');
+    assert.equal(fileKind('ToscaSupportInfo.txt').kind, 'text');
+    assert.equal(fileKind('Error Details.docx').kind, 'office');
+    assert.equal(fileKind('AnalysisReport(EditCase)_1.pdf').kind, 'pdf');
+    assert.equal(fileKind('trace.zip').kind, 'archive');
+    assert.equal(fileKind('noext').kind, 'other');
+    // a name that is a key of Object.prototype is no type
+    assert.equal(fileKind('x.constructor').kind, 'other');
+  });
+
+  test('listTree: folders before their files, numbers by value, no reading', async () => {
+    const file = (name) => ({ kind: 'file', name });
+    const dir = (name, kids) => ({
+      kind: 'directory',
+      name,
+      async *values() {
+        yield* kids;
+      },
+    });
+    const root = dir('assets', [dir('10_x', [file('b.png')]), dir('2_x', [file('a.pdf'), dir('sub', [file('z.txt')])]), file('top.log')]);
+    const tree = await listTree(root);
+    assert.deepEqual(
+      tree.map((e) => `${e.depth}:${e.path}`),
+      ['0:2_x', '1:2_x/a.pdf', '1:2_x/sub', '2:2_x/sub/z.txt', '0:10_x', '1:10_x/b.png', '0:top.log'],
+    );
+    assert.equal(tree[0].kind, 'directory');
+    assert.equal((await listTree(root, 0)).length, 3);
   });
 });

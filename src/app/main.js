@@ -165,6 +165,7 @@ function layout() {
       'header',
       { class: 'menubar', role: 'menubar', id: 'menubar' },
       menu('file', 'Datei', fileMenu),
+      menu('case', 'Fall', caseMenu),
       menu('view', 'Ansicht', viewMenu),
       menu('filter', 'Filter', filterMenu),
       menu('catalog', 'Katalog', catalogMenu),
@@ -344,6 +345,17 @@ function fileMenu() {
   return out;
 }
 
+function caseMenu() {
+  const f = st.folder;
+  return [
+    note('Fall'),
+    item('Assets …', () => showAssets('assets'), { disabled: !f, title: 'Alle Ordner und Dateien unter assets/ ansehen' }),
+    item('Diagramme …', () => showAssets('diagrams'), { disabled: !f, title: 'Die Zeichnungen unter Research/Diagrams/' }),
+    sep(),
+    item('Logs …', () => showLogPicker(), { disabled: !f }),
+  ];
+}
+
 function viewMenu() {
   const s = st.settings;
   return [
@@ -518,7 +530,12 @@ async function useFolder(handle) {
     const assets = await childFolder(handle, ASSETS);
     const dir = assets ?? handle;
     const logs = await listLogs(dir, await logExtensions());
-    st.folder = { handle, name: displayName(handle.name), caseName: await caseName(handle), logs, assets: Boolean(assets) };
+    // everything under assets/ and the drawings of Research/Diagrams/: handles only, nothing is read yet
+    const tree = assets ? await listTree(assets) : [];
+    const research = await childFolder(handle, 'Research');
+    const drawings = research ? await childFolder(research, DIAGRAMS_DIR) : null;
+    const diagrams = drawings ? (await listTree(drawings)).filter((e) => e.kind === 'file') : [];
+    st.folder = { handle, name: displayName(handle.name), caseName: await caseName(handle), logs, assets: Boolean(assets), tree, diagrams };
     closeLog(true);
     renderWhere();
     showLogPicker();
@@ -528,6 +545,7 @@ async function useFolder(handle) {
 function showLogPicker() {
   const f = st.folder;
   if (!f) return renderStart();
+  dropPreview();
   const log = $('log');
   const checks = [];
   const rows = f.logs.map((l, i) => {
@@ -577,6 +595,13 @@ function showLogPicker() {
         ? h('table', { class: 'logs', id: 'logs' }, h('thead', {}, h('tr', {}, h('th', {}), h('th', {}, 'Log'), h('th', {}, 'Größe'))), h('tbody', {}, rows))
         : h('p', { class: 'hint' }, 'Keine Logs gefunden (Endungen: ' + (st.extensions ?? []).join(', ') + ').'),
       f.logs.length > 1 ? mergeButton : null,
+      h(
+        'p',
+        { class: 'hint' },
+        h('button', { type: 'button', class: 'link', id: 'to-assets', onclick: () => showAssets('assets') }, `Assets ansehen (${num(f.tree.filter((e) => e.kind === 'file').length)})`),
+        ' · ',
+        h('button', { type: 'button', class: 'link', id: 'to-diagrams', onclick: () => showAssets('diagrams') }, `Diagramme ansehen (${num(f.diagrams.length)})`),
+      ),
     ),
   );
   renderSidebar();
@@ -590,6 +615,157 @@ function showLogPicker() {
       // a file that went away shows no size; opening it says why
     }
   });
+}
+
+// ── assets and diagrams ──────────────────────────────────────────────────────────────────────────────────────────
+
+/** The blob URL of the picture on show (revoked when another file or view replaces it). */
+let previewUrl = null;
+/** Counts the previews: an answer for an older click is dropped. */
+let previewSeq = 0;
+
+function dropPreview() {
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = null;
+}
+
+/**
+ * The folders and files of the case: `assets` (everything under `assets/`) or `diagrams` (`Research/Diagrams/`).
+ * A click on a file shows it where it can be shown (picture, text); a log opens as the reading copy; the rest is
+ * a copy for the system app. The page reads a file only when it is clicked.
+ * @param {'assets' | 'diagrams'} section
+ */
+function showAssets(section = 'assets') {
+  const f = st.folder;
+  if (!f) return renderStart();
+  closeLog(true);
+  dropPreview();
+  previewSeq++;
+  const entries = section === 'diagrams' ? f.diagrams : f.tree;
+  const files = entries.filter((e) => e.kind === 'file');
+  const tab = (id, label, n) =>
+    h('button', { type: 'button', class: 'tab', id: `tab-${id}`, role: 'tab', 'aria-selected': String(id === section), onclick: () => showAssets(id) }, `${label} (${num(n)})`);
+  const list = h('ul', { class: 'tree', id: 'tree' });
+  const buttons = new Map();
+  for (const e of entries) {
+    const style = `--depth:${e.depth}`;
+    if (e.kind === 'directory') {
+      list.append(h('li', { class: 'dir', style }, h('span', { translate: 'no' }, `${e.name}/`)));
+      continue;
+    }
+    const cell = h('span', { class: 'size' });
+    const button = h('button', { type: 'button', class: 'link', translate: 'no', onclick: () => previewAsset(e, section, button) }, e.name);
+    buttons.set(e, button);
+    list.append(h('li', { class: 'file', style }, button, cell));
+    e.handle
+      .getFile()
+      .then((file) => {
+        cell.textContent = size(file.size);
+      })
+      .catch(() => {
+        // a file that went away shows no size; opening it says why
+      });
+  }
+  let empty = null;
+  if (!files.length) {
+    empty =
+      section === 'diagrams'
+        ? h('p', { class: 'hint' }, 'Keine Zeichnungen: ', nt(`Research/${DIAGRAMS_DIR}/`), ' fehlt oder ist leer (in Neovim: ', nt(':Case diagrams'), ').')
+        : h('p', { class: 'hint' }, f.assets ? 'Der Ordner assets/ ist leer.' : ['Kein Ordner ', nt(`${ASSETS}/`), ' in ', nt(f.name), '.']);
+  }
+  $('log').replaceChildren(
+    h(
+      'div',
+      { class: 'assets' },
+      h('h1', {}, 'Fall ', nt(f.caseName)),
+      h('div', { class: 'tabs', role: 'tablist' }, tab('assets', 'Assets', f.tree.filter((e) => e.kind === 'file').length), tab('diagrams', 'Diagramme', f.diagrams.length)),
+      empty,
+      files.length
+        ? h('div', { class: 'assets-body' }, list, h('section', { class: 'assets-preview', id: 'asset-preview', 'aria-live': 'polite' }, h('p', { class: 'hint' }, 'Eine Datei anklicken.')))
+        : null,
+    ),
+  );
+  renderSidebar();
+  renderStatus();
+  // the drawings are what one came for: the first one is shown at once
+  if (section === 'diagrams') {
+    const first = files.find((e) => fileKind(e.name).kind === 'image');
+    if (first) previewAsset(first, section, buttons.get(first));
+  }
+}
+
+/** Download a copy: the browser saves it to its download folder, from where the system app opens it. */
+function saveCopy(file, name) {
+  const url = URL.createObjectURL(file);
+  const a = h('a', { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  say(`${name}: Kopie an den Download-Ordner übergeben`);
+}
+
+async function previewAsset(e, section, button) {
+  const pane = $('asset-preview');
+  if (!pane) return;
+  const seq = ++previewSeq;
+  dropPreview();
+  for (const b of document.querySelectorAll('#tree .link[aria-current]')) b.removeAttribute('aria-current');
+  if (button) button.setAttribute('aria-current', 'true');
+  let file;
+  try {
+    file = await e.handle.getFile();
+  } catch (err) {
+    if (seq === previewSeq) pane.replaceChildren(h('p', { class: 'hint' }, nt(e.path), `: nicht lesbar (${errText(err)})`));
+    return;
+  }
+  if (seq !== previewSeq) return;
+  const { kind, mime } = fileKind(e.name);
+  const actions = h('div', { class: 'asset-actions' });
+  const log = section === 'assets' && st.folder?.assets ? st.folder.logs.find((l) => l.path === e.path) : null;
+  if (log) actions.append(h('button', { type: 'button', id: 'as-log', onclick: () => openLogs([log]) }, 'Als Lesekopie öffnen'));
+  if (kind === 'pdf') {
+    actions.append(
+      h(
+        'button',
+        {
+          type: 'button',
+          id: 'as-tab',
+          onclick: () => {
+            const url = URL.createObjectURL(new Blob([file], { type: mime }));
+            window.open(url, '_blank', 'noopener');
+            setTimeout(() => URL.revokeObjectURL(url), 300_000);
+          },
+        },
+        'In neuem Tab öffnen',
+      ),
+    );
+  }
+  actions.append(h('button', { type: 'button', id: 'as-copy', onclick: () => saveCopy(file, e.name) }, 'Kopie speichern (zum Öffnen mit der System-App)'));
+  const out = [h('h2', { translate: 'no' }, e.path), h('p', { class: 'hint' }, size(file.size)), actions];
+  if (kind === 'image') {
+    if (file.size > MAX_IMAGE_BYTES) {
+      out.push(h('p', { class: 'hint' }, `Größer als ${size(MAX_IMAGE_BYTES)}: nur als Kopie.`));
+    } else {
+      // an <img> only: a picture, an SVG too, runs no script of the page
+      previewUrl = URL.createObjectURL(new Blob([file], { type: mime }));
+      out.push(h('img', { class: 'asset-image', src: previewUrl, alt: e.name }));
+    }
+  } else if (kind === 'text') {
+    const text = await file.slice(0, MAX_PREVIEW_TEXT).text();
+    if (seq !== previewSeq) return;
+    out.push(h('pre', { class: 'asset-text', translate: 'no' }, text));
+    if (file.size > MAX_PREVIEW_TEXT) out.push(h('p', { class: 'hint' }, `Die ersten ${size(MAX_PREVIEW_TEXT)} von ${size(file.size)}.`));
+  } else if (kind === 'office') {
+    out.push(h('p', { class: 'hint' }, 'Word, Excel, PowerPoint und Mails zeigt die Seite nicht: Kopie speichern und mit der System-App öffnen.'));
+  } else if (kind === 'archive') {
+    out.push(h('p', { class: 'hint' }, 'Gepackte Dateien öffnet die Seite nicht: Kopie speichern und entpacken.'));
+  } else if (kind === 'pdf') {
+    out.push(h('p', { class: 'hint' }, 'PDF: im neuen Tab (Viewer von Chrome) oder als Kopie.'));
+  } else {
+    out.push(h('p', { class: 'hint' }, 'Keine Vorschau für diese Art: Kopie speichern.'));
+  }
+  pane.replaceChildren(...out);
 }
 
 /**

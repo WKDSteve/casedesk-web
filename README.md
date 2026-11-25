@@ -34,10 +34,21 @@ the case folder you pick and nothing else, and writes nothing.
 | Menu | What |
 | --- | --- |
 | Datei | pick a case folder, the folders used before, pick a log, reload, close |
+| Fall | *Assets …* (every folder and file under `assets/`), *Diagramme …* (the drawings of `Research/Diagrams/`), *Logs …* |
 | Ansicht | time as written / UTC / relative to the first entry; repeats folded; page source labelled / all / clickable; unfold or fold all; side bar; the original lines of a row; the keys |
 | Filter | add a filter (text, level, source, correlation id, direction: a substring, `/…/` a Lua pattern, `!` in front excludes), *only errors*, *errors and warnings*, drop the last, drop all |
 | Katalog | pick the catalog of known messages (`WKDBook-Tricentis/Workflow/log-patterns.conf`, format: casedesk.nvim `docs/log-patterns.md`), stop using it, next/previous known message, its problems |
 | Einstellungen | from when a distance between rows shows (`250 ms`) and a gap gets its own row (`5 min`), forget the folders used, the start line |
+
+### Assets and diagrams
+
+*Fall → Assets …* lists every folder and file under `assets/` (one folder per delivery, e.g. `00_2026-11-25/`), *Fall → Diagramme …* the
+drawings under `Research/Diagrams/` (the first picture is shown at once). A click shows the file where the page can: a picture
+(SVG too, always through an `<img>`, so a drawing runs no script of the page) and the first 512 kB of a text. A log opens as
+the reading copy. A PDF opens in a new tab (Chrome's viewer; the page's policy may stop it, then use the copy). Word, Excel,
+PowerPoint, mails and archives are not shown: *Kopie speichern* hands a copy to the browser's download folder, from where the
+system app opens it (a page from `file://` cannot start a program, and it writes nothing into the case folder). A file is read
+only when it is clicked; nothing of it goes into the browser's storage.
 
 The side bar on the right groups the rows of the view (after filters): **Fehler**, **Warnungen**, **Exceptions**,
 **Lücken**, **Wiederholungen** and, with a catalog, **Bekannt**, each known message with its explanation, its links

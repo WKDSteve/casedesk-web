@@ -6,6 +6,9 @@
 /** The folder of a case the logs are in (`config.assets_dirname`). */
 export const ASSETS = 'assets';
 
+/** The folder of a case's drawings, below `Research/` (casedesk.nvim: `Research/Diagrams/Diagrams.md`). */
+export const DIAGRAMS_DIR = 'Diagrams';
+
 /** Largest file the page reads (`casedesk.web.api.MAX_TEXT`). */
 export const MAX_LOG_BYTES = 64 * 1024 * 1024;
 
@@ -43,6 +46,73 @@ export async function listLogs(dir, extensions, maxDepth = 8) {
   };
   await walk(dir, '', 0);
   return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+/** Biggest picture the asset view decodes. */
+export const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+
+/** How much of a text file the asset view shows (the first bytes; a log has its own reading copy). */
+export const MAX_PREVIEW_TEXT = 512 * 1024;
+
+const IMAGE_TYPES = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+};
+const TEXT_TYPES = new Set(['txt', 'md', 'log', 'out', 'json', 'jsonl', 'ndjson', 'xml', 'csv', 'tsv', 'conf', 'ini', 'yaml', 'yml', 'lua', 'ps1', 'bat', 'sql', 'html', 'htm']);
+const OFFICE_TYPES = new Set(['doc', 'docx', 'dot', 'dotx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'msg', 'eml']);
+const ARCHIVE_TYPES = new Set(['zip', 'gz', '7z', 'tar', 'tgz', 'rar', 'cab']);
+
+/**
+ * What the asset view does with a file, by its name: `image` (shown as a picture, an SVG too, always through an
+ * `<img>` so that it can run no script), `text` (its first bytes), `pdf`, `office`, `archive` (only a copy to open
+ * with the system app) or `other`. `mime` is the type a picture is shown with.
+ * @param {string} name
+ * @returns {{ kind: 'image' | 'text' | 'pdf' | 'office' | 'archive' | 'other', mime: string | null, ext: string }}
+ */
+export function fileKind(name) {
+  const ext = (String(name).match(/\.(\w+)$/)?.[1] ?? '').toLowerCase();
+  if (Object.hasOwn(IMAGE_TYPES, ext)) return { kind: 'image', mime: IMAGE_TYPES[ext], ext };
+  if (TEXT_TYPES.has(ext)) return { kind: 'text', mime: null, ext };
+  if (ext === 'pdf') return { kind: 'pdf', mime: 'application/pdf', ext };
+  if (OFFICE_TYPES.has(ext)) return { kind: 'office', mime: null, ext };
+  if (ARCHIVE_TYPES.has(ext)) return { kind: 'archive', mime: null, ext };
+  return { kind: 'other', mime: null, ext };
+}
+
+const pathCollator = new Intl.Collator('de', { numeric: true, sensitivity: 'base' });
+
+/**
+ * Every folder and file under a folder handle, as flat entries sorted by path (numbers by value, so `2_x` comes
+ * before `10_x`); a folder comes before what is in it. Only handles: nothing is read. Folders deeper than `maxDepth`
+ * are not walked.
+ * @param {{ values(): AsyncIterable<any> }} dir
+ * @returns {Promise<{ path: string, name: string, kind: 'file' | 'directory', depth: number, handle: any }[]>}
+ */
+export async function listTree(dir, maxDepth = 8) {
+  const out = [];
+  const walk = async (d, prefix, depth) => {
+    for await (const h of d.values()) {
+      const path = prefix ? `${prefix}/${h.name}` : h.name;
+      out.push({ path, name: h.name, kind: h.kind === 'directory' ? 'directory' : 'file', depth, handle: h });
+      if (h.kind === 'directory' && depth < maxDepth) await walk(h, path, depth + 1);
+    }
+  };
+  await walk(dir, '', 0);
+  // segment by segment: `a/b` follows `a`, and `a b` does not slip in between
+  return out.sort((x, y) => {
+    const a = x.path.split('/');
+    const b = y.path.split('/');
+    for (let i = 0; i < Math.min(a.length, b.length); i++) {
+      const c = pathCollator.compare(a[i], b[i]);
+      if (c !== 0) return c;
+    }
+    return a.length - b.length;
+  });
 }
 
 /** The child folder `name` of a folder handle, or null. */

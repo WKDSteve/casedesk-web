@@ -26,6 +26,9 @@ const TREE = {
   'assets/browserstack-device.redacted.log': 'a redacted copy is never offered',
   'assets/screen.png': 'not a log',
   'Research/01_Notes.md': 'not under assets/',
+  'assets/00_2026-11-25/Error Details.docx': 'not parsed by the page',
+  'Research/Diagrams/Diagrams.md': '# Diagramme of an invented case',
+  'Research/Diagrams/01_architecture.svg': '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="#08c"/></svg>',
 };
 
 /** Texts of the logs and the catalog that must never reach the browser's storage. */
@@ -305,4 +308,36 @@ test('the catalog of known messages, and a reload keeps the folder and the catal
 
   const after = await clean(page, watch);
   expect(after.some((w) => w.json.includes('4711-folder'))).toBe(true);
+});
+
+test('the Case menu: assets by folder, a picture, a text, a copy for the system app, and the drawings', async ({ page }) => {
+  const watch = await start(page);
+  await page.locator('#pick').click();
+  await expect(page.locator('#where')).toHaveText('4711-TEST');
+
+  await page.getByRole('button', { name: 'Fall', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Assets/ }).click();
+  await expect(page.locator('#tree li.dir')).toHaveText(['00_2026-11-25/', 'agent/']);
+
+  // a file that cannot be shown is only offered as a copy, and the copy is a download
+  await page.locator('#tree').getByRole('button', { name: 'Error Details.docx', exact: true }).click();
+  await expect(page.locator('#asset-preview')).toContainText('Word, Excel');
+  const download = page.waitForEvent('download');
+  await page.locator('#as-copy').click();
+  expect((await download).suggestedFilename()).toBe('Error Details.docx');
+
+  // a log can be opened as the reading copy from here
+  await page.locator('#tree').getByRole('button', { name: 'tbox-agent.log', exact: true }).click();
+  await expect(page.locator('#as-log')).toBeVisible();
+
+  // the drawings: the first picture is shown at once, as an image (never inline markup)
+  await page.locator('#tab-diagrams').click();
+  const img = page.locator('img.asset-image');
+  await expect(img).toBeVisible();
+  expect(await img.getAttribute('src')).toMatch(/^blob:/);
+  expect(await page.locator('#asset-preview svg').count()).toBe(0);
+  await page.locator('#tree').getByRole('button', { name: 'Diagrams.md', exact: true }).click();
+  await expect(page.locator('pre.asset-text')).toContainText('Diagramme of an invented case');
+
+  await clean(page, watch);
 });
