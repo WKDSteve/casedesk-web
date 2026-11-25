@@ -159,4 +159,20 @@ describe('the asset view', () => {
     assert.equal(tree[0].kind, 'directory');
     assert.equal((await listTree(root, 0)).length, 3);
   });
+
+  test('listTree: names that differ only by an accent keep their own files', async () => {
+    const file = (name) => ({ kind: 'file', name });
+    const dir = (name, kids) => ({
+      kind: 'directory',
+      name,
+      async *values() {
+        yield* kids;
+      },
+    });
+    const tree = await listTree(dir('r', [dir('résumé', [file('y')]), dir('resume', [file('x')])]));
+    const paths = tree.map((e) => e.path);
+    // each folder is followed by its own file, never by the other's
+    assert.equal(paths.indexOf('resume/x'), paths.indexOf('resume') + 1);
+    assert.equal(paths.indexOf('résumé/y'), paths.indexOf('résumé') + 1);
+  });
 });

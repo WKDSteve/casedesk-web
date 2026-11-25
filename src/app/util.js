@@ -84,7 +84,8 @@ export function fileKind(name) {
   return { kind: 'other', mime: null, ext };
 }
 
-const pathCollator = new Intl.Collator('de', { numeric: true, sensitivity: 'base' });
+// numbers by value; no `sensitivity: 'base'`: `resume` and `résumé` are two folders and must not compare equal
+const pathCollator = new Intl.Collator('de', { numeric: true });
 
 /**
  * Every folder and file under a folder handle, as flat entries sorted by path (numbers by value, so `2_x` comes
