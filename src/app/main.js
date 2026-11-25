@@ -8,7 +8,6 @@
 //
 // build/pack.mjs puts `const PAGE = {...}`, appkit-web's folder.js and folder-input.js, src/client.js and
 // src/app/util.js in front of this script.
-
 /* global PAGE */
 
 const SETTINGS_KEY = 'casedesk-web.view';

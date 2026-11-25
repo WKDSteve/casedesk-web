@@ -1,7 +1,6 @@
 // The engine check page: starts the Lua core of casedesk.nvim in a worker and builds the reading copy of an invented
 // BrowserStack device log that is part of the page. Reads no folder of this machine, makes no request (the CSP forbids
 // every one). build/pack.mjs puts `const PAGE = {...}` (build, pins, sizes) in front of this script.
-
 /* global PAGE */
 
 const T0 = performance.now();
