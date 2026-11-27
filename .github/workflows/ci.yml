@@ -47,7 +47,7 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # Advisory: legacy patterns in the sources (rules-vault web); a finding does not fail the build
+      # Advisory: legacy patterns in the sources (the web platform rules); a finding does not fail the build
       - name: Legacy scan
         continue-on-error: true
         env:
