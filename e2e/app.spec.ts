@@ -315,7 +315,8 @@ test('the Case menu: assets by folder, a picture, a text, a copy for the system 
   await page.locator('#pick').click();
   await expect(page.locator('#where')).toHaveText('4711-TEST');
 
-  await page.getByRole('button', { name: 'Fall', exact: true }).click();
+  // The button reads "Fall ▾"; the other menus are reached by their id as well.
+  await page.locator('#menubutton-case').click();
   await page.getByRole('menuitem', { name: /Assets/ }).click();
   await expect(page.locator('#tree li.dir')).toHaveText(['00_2026-11-25/', 'agent/']);
 
