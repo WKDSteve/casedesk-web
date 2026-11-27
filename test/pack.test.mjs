@@ -10,7 +10,7 @@ import { before, describe, test } from 'node:test';
 import { LuaFactory } from 'wasmoon';
 import { CSP_WASM_WORKER, verify, verifyShell } from 'appkit-web/pack';
 import { bundle, moduleName, root, vimNames } from '../build/bundle.mjs';
-import { APP_PART_IDS, APP_SCRIPTS, classic, PAGES, PART_IDS, pages, sums } from '../build/pack.mjs';
+import { APP_PART_IDS, APP_SCRIPTS, classic, PAGES, PART_IDS, pages, sums, iconLinks } from '../build/pack.mjs';
 import { WebEngine } from '../src/engine.js';
 
 const built = await pages();
@@ -34,6 +34,25 @@ describe('the pages', () => {
     for (const id of PART_IDS) {
       assert.equal(html.split(`<script id="${id}" type="application/octet-stream">`).length, 2, id);
     }
+  });
+
+  test('casedesk.html carries its icon for main.js: the SVG for the tab, the PNG for a page installed from the browser', () => {
+    const html = built['casedesk.html'];
+    const page = JSON.parse(html.match(/const PAGE = (\{.*?\});\n/)[1]);
+    const [svg, png] = page.icons;
+    assert.equal(svg.type, 'image/svg+xml');
+    assert.equal(decodeURIComponent(svg.href.replace('data:image/svg+xml,', '')), readFileSync(join(root, 'src', 'app', 'favicon.svg'), 'utf8').trim());
+    assert.deepEqual([png.type, png.sizes], ['image/png', '192x192']);
+    assert.deepEqual(Buffer.from(png.href.replace('data:image/png;base64,', ''), 'base64'), readFileSync(join(root, 'src', 'app', 'icon-192.png')));
+    // The kit lets no href into the markup: the links come from the script, the shell still loads nothing.
+    assert.deepEqual(verifyShell(html, { partIds: APP_PART_IDS }), []);
+  });
+
+  test('iconLinks makes data: URLs only, and the namespace of the SVG is no URL in the page', () => {
+    const links = iconLinks('<svg xmlns="http://www.w3.org/2000/svg"/>\n', Buffer.from([1, 2]));
+    assert.ok(links.every((l) => l.href.startsWith('data:')));
+    assert.doesNotMatch(links[0].href, /http:\/\//);
+    assert.equal(links[1].href, 'data:image/png;base64,AQI=');
   });
 
   test('casedesk.html: a shell that loads nothing, the policy of an engine page, the three engine parts', () => {

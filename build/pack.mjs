@@ -82,14 +82,30 @@ function engineParts(b) {
 
 const engineLabel = (b) => `casedesk.nvim ${b.engine.casedesk_commit.slice(0, 7)}, lib.nvim ${b.engine.lib_commit.slice(0, 7)}`;
 
+/**
+ * The icon links of casedesk.html, for `PAGE.icons`: main.js puts them into the head when the page starts. The kit's
+ * shell has no icon, and its `verify` refuses every `href=` in the markup (the page loads nothing), so a tab would show
+ * the browser's blank page and a page installed from the browser a letter; tasks-web sets its icon from its script the
+ * same way. The files come from the icon generator of the vault (`casedesk-web` in its WIRED list); a page from file://
+ * can load nothing beside it, so both are data: URLs. Chrome draws the tab from the SVG and the shortcut of an
+ * installed page from the PNG.
+ */
+export function iconLinks(svg, png) {
+  return [
+    { type: 'image/svg+xml', href: `data:image/svg+xml,${encodeURIComponent(svg.trim())}` },
+    { type: 'image/png', sizes: '192x192', href: `data:image/png;base64,${png.toString('base64')}` },
+  ];
+}
+
 /** The reading copy page. */
 export function app(b) {
   const parts = engineParts(b);
   const css = src('src', 'app', 'app.css');
   const script = APP_SCRIPTS.map((p) => classic(readFileSync(join(root, ...p), 'utf8'))).join('\n;\n');
-  const build = sha([css, script, ...APP_PART_IDS.map((id) => sha(parts[id]))].join('\n')).slice(0, 12);
+  const icons = iconLinks(src('src', 'app', 'favicon.svg'), readFileSync(join(root, 'src', 'app', 'icon-192.png')));
+  const build = sha([css, script, JSON.stringify(icons), ...APP_PART_IDS.map((id) => sha(parts[id]))].join('\n')).slice(0, 12);
   const engine = engineLabel(b);
-  const js = `const PAGE = ${JSON.stringify({ build, engine })};\n${script}`;
+  const js = `const PAGE = ${JSON.stringify({ build, engine, icons })};\n${script}`;
   // The text of this page is German: Intl, the translator and the screen reader go by the language of the page.
   const html = assemble({
     css,

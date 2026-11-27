@@ -310,6 +310,33 @@ test('the catalog of known messages, and a reload keeps the folder and the catal
   expect(after.some((w) => w.json.includes('4711-folder'))).toBe(true);
 });
 
+test('the page has its icon: the SVG for the tab, the PNG for a page installed from the browser, both drawn', async ({ page }) => {
+  const watch = await start(page);
+  const icons = page.locator('head link[rel="icon"]');
+  await expect(icons).toHaveCount(2);
+  await expect(icons.nth(0)).toHaveAttribute('href', /^data:image\/svg\+xml,/);
+  await expect(icons.nth(1)).toHaveAttribute('sizes', '192x192');
+  await expect(icons.nth(1)).toHaveAttribute('href', /^data:image\/png;base64,/);
+  // Both are pictures the browser can draw under the policy of the page (img-src data:), not just text.
+  const sizes = await icons.evaluateAll((links) =>
+    Promise.all(
+      links.map(
+        (l) =>
+          new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve(img.naturalWidth);
+            img.onerror = () => resolve(0);
+            img.src = (l as HTMLLinkElement).href;
+          }),
+      ),
+    ),
+  );
+  // The SVG has a viewBox and no width, so the browser gives it its default; the PNG is 192 px.
+  expect(sizes[0]).toBeGreaterThan(0);
+  expect(sizes[1]).toBe(192);
+  await clean(page, watch);
+});
+
 test('the Case menu: assets by folder, a picture, a text, a copy for the system app, and the drawings', async ({ page }) => {
   const watch = await start(page);
   await page.locator('#pick').click();

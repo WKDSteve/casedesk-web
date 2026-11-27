@@ -1,3 +1,5 @@
+![casedesk-web](assets/icons/casedesk-web/png/casedesk-web-128.png)
+
 # casedesk-web
 
 casedesk in the browser: single HTML files that Chrome opens from disk (`file://`). No install, no server, no process
@@ -23,7 +25,9 @@ the case folder you pick and nothing else, and writes nothing.
 
 1. Check the file against `SHA256SUMS` (as for the probe below) and open it in Chrome:
    `file:///C:/repos/casedesk-web/casedesk.html` (adjust the path). *Settings → Startzeile für Chrome* gives the line
-   for a shortcut that opens it as its own window (the page makes no shortcut itself).
+   for a shortcut that opens it as its own window (the page makes no shortcut itself). A page installed from Chrome's
+   menu takes the icon of the page; one installed before the page had an icon keeps Chrome's letter until it is
+   removed and installed again.
 2. *Fallordner wählen …* and pick a case folder. The page lists the logs under `assets/` (extensions of casedesk.nvim's core:
    `log`, `txt`, `out`, `ndjson`, `jsonl`, `json`, `xml`, `csv`; no `*.redacted.*` copies); a folder without
    `assets/` lists its own logs. The folders used before come first next time (*Datei → Zuletzt benutzt*, and on the

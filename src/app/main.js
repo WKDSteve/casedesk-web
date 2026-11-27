@@ -1666,7 +1666,13 @@ function focusNode(n) {
 
 // ── start ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** The icon of the tab and of a page installed from the browser: the markup may name no href, so it comes from here. */
+function setIcons() {
+  for (const icon of PAGE.icons ?? []) document.head.append(Object.assign(document.createElement('link'), { rel: 'icon', ...icon }));
+}
+
 async function main() {
+  setIcons();
   layout();
   document.body.dataset.state = 'starting';
   st.kv = idbKeyValue(indexedDB, 'casedesk-web');
